@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dispute-portal-api
+data:
+  ASPNETCORE_ENVIRONMENT: Production
+  # The public URL of the identity provider. It must match the issuer in the access tokens.
+  Auth__Authority: https://login.example.com/realms/acme-bank
+  Auth__Audience: dispute-portal-api
+  Auth__RequireHttpsMetadata: "true"
+  # Migrations are run by the migration Job, never by the pods.
+  Database__MigrateOnStartup: "false"
+  Seed__Enabled: "false"
+  ApiDocs__Enabled: "false"
+  RateLimiting__RequestsPerMinute: "300"
+  RateLimiting__DisputeSubmissionsPerMinute: "5"

@@ -1,0 +1,78 @@
+# The background tier: the dispute processor and the outbox dispatcher, from the same image as the API.
+# More than one replica is safe because workers claim rows with FOR UPDATE SKIP LOCKED.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dispute-portal-worker
+  labels:
+    app.kubernetes.io/name: dispute-portal-api
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dispute-portal-api
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dispute-portal-api
+        app.kubernetes.io/component: worker
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /metrics
+    spec:
+      automountServiceAccountToken: false
+      # Long enough for a worker to finish the batch it is processing after SIGTERM.
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        runAsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: dispute-portal-api
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: Workers__Enabled
+              value: "true"
+          envFrom:
+            - configMapRef:
+                name: dispute-portal-api
+            - secretRef:
+                name: dispute-portal-api
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 192Mi
+            limits:
+              memory: 384Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

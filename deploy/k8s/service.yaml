@@ -1,0 +1,17 @@
+# Routes cluster traffic to the API pods only. Worker pods are not behind the service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: dispute-portal-api
+  labels:
+    app.kubernetes.io/name: dispute-portal-api
+    app.kubernetes.io/component: api
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: dispute-portal-api
+    app.kubernetes.io/component: api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

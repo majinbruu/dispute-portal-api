@@ -1,0 +1,35 @@
+# Scales the API tier on CPU. Scaling out works because the API holds no state between requests.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: dispute-portal-api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: dispute-portal-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleDown:
+      # Wait five minutes before removing pods, so a short dip does not cause churn.
+      stabilizationWindowSeconds: 300
+---
+# Keeps at least one API pod running during voluntary disruptions such as node drains.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dispute-portal-api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dispute-portal-api
+      app.kubernetes.io/component: api
