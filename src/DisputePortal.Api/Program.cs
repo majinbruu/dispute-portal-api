@@ -59,9 +59,11 @@ builder.Services.AddHealthChecks()
     .AddDisputesHealthChecks()
     .AddNotificationsHealthChecks();
 
-// Business and runtime metrics are published from .NET meters. The Npgsql meter is left out because
-// its labels carry the connection string (host, database and user name).
-Metrics.ConfigureMeterAdapter(options => options.InstrumentFilterPredicate = instrument => instrument.Meter.Name != "Npgsql");
+// Business and runtime metrics are published from .NET meters. The Npgsql meter is left out because its labels
+// carry the connection string (host, database and user name), and the runtime's internal diagnostics are noise.
+Metrics.ConfigureMeterAdapter(options => options.InstrumentFilterPredicate = instrument =>
+    instrument.Meter.Name != "Npgsql" &&
+    !instrument.Meter.Name.StartsWith("Private.InternalDiagnostics", StringComparison.Ordinal));
 
 var app = builder.Build();
 

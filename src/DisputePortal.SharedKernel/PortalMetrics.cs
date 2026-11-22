@@ -9,15 +9,16 @@ public static class PortalMetrics
 
     private static readonly Meter Meter = new(MeterName, "1.0.0");
 
+    // The exporter prefixes each instrument with the meter name, for example disputeportal_disputes_submitted.
     public static readonly Counter<long> DisputesSubmitted =
-        Meter.CreateCounter<long>("dispute_portal_disputes_submitted", description: "Disputes submitted by customers.");
+        Meter.CreateCounter<long>("disputes_submitted", description: "Disputes submitted by customers.");
 
     public static readonly Counter<long> DisputesCompleted =
-        Meter.CreateCounter<long>("dispute_portal_disputes_completed", description: "Disputes that reached an outcome.");
+        Meter.CreateCounter<long>("disputes_completed", description: "Disputes that reached an outcome.");
 
     public static readonly Counter<long> OutboxMessagesDispatched =
-        Meter.CreateCounter<long>("dispute_portal_outbox_dispatched", description: "Outbox messages delivered to consumers.");
+        Meter.CreateCounter<long>("outbox_dispatched", description: "Outbox messages delivered to consumers.");
 
     public static readonly Counter<long> OutboxMessagesFailed =
-        Meter.CreateCounter<long>("dispute_portal_outbox_failed", description: "Outbox delivery attempts that failed.");
+        Meter.CreateCounter<long>("outbox_failed", description: "Outbox delivery attempts that failed.");
 }
