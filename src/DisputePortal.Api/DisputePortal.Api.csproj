@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- The OpenAPI document is generated on every build and committed, so contract changes show up in review. -->
+    <OpenApiDocumentsDirectory>$(MSBuildProjectDirectory)/../../docs/api</OpenApiDocumentsDirectory>
+    <OpenApiGenerateDocumentsOptions>--file-name openapi</OpenApiGenerateDocumentsOptions>
+    <OpenApiGenerateDocuments>false</OpenApiGenerateDocuments>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.ApiDescription.Server">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="prometheus-net.AspNetCore" />
+    <PackageReference Include="Scalar.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DisputePortal.SharedKernel\DisputePortal.SharedKernel.csproj" />
+    <ProjectReference Include="..\DisputePortal.Modules.DebitOrders\DisputePortal.Modules.DebitOrders.csproj" />
+    <ProjectReference Include="..\DisputePortal.Modules.Disputes\DisputePortal.Modules.Disputes.csproj" />
+    <ProjectReference Include="..\DisputePortal.Modules.Notifications\DisputePortal.Modules.Notifications.csproj" />
+  </ItemGroup>
+
+</Project>

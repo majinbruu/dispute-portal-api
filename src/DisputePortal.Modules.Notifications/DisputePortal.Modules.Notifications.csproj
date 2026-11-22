@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="EFCore.NamingConventions" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DisputePortal.SharedKernel\DisputePortal.SharedKernel.csproj" />
+    <!-- Only the Disputes.Contracts namespace may be used. Enforced by the architecture tests. -->
+    <ProjectReference Include="..\DisputePortal.Modules.Disputes\DisputePortal.Modules.Disputes.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DisputePortal.UnitTests" />
+  </ItemGroup>
+
+</Project>

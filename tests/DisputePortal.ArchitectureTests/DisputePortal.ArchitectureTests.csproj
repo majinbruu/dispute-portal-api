@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NetArchTest.Rules" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DisputePortal.SharedKernel\DisputePortal.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\src\DisputePortal.Modules.DebitOrders\DisputePortal.Modules.DebitOrders.csproj" />
+    <ProjectReference Include="..\..\src\DisputePortal.Modules.Disputes\DisputePortal.Modules.Disputes.csproj" />
+    <ProjectReference Include="..\..\src\DisputePortal.Modules.Notifications\DisputePortal.Modules.Notifications.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Shouldly" />
+  </ItemGroup>
+
+</Project>
