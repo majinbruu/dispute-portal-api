@@ -1,0 +1,8 @@
+name: dispute-portal
+
+services:
+  api:
+    build:
+      context: .
+    ports:
+      - "${API_PORT:-5080}:8080"

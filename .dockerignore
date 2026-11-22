@@ -1,0 +1,11 @@
+**/bin
+**/obj
+**/.vs
+**/TestResults
+.git
+.github
+deploy
+docs
+*.md
+.env
+docker-compose*.yml
