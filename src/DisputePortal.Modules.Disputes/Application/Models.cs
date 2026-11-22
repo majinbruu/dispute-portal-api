@@ -1,4 +1,5 @@
 using DisputePortal.Modules.Disputes.Domain;
+using Microsoft.AspNetCore.Mvc;
 
 namespace DisputePortal.Modules.Disputes.Application;
 
@@ -61,10 +62,13 @@ internal sealed record DisputeDetailDto(
 /// <summary>Query string for the dispute history list.</summary>
 internal sealed class DisputeListQuery
 {
+    [FromQuery(Name = "state")]
     public DisputeState? State { get; init; }
 
+    [FromQuery(Name = "page")]
     public int? Page { get; init; }
 
+    [FromQuery(Name = "pageSize")]
     public int? PageSize { get; init; }
 }
 

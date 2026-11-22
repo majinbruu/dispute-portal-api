@@ -1,4 +1,5 @@
 using DisputePortal.Modules.DebitOrders.Domain;
+using Microsoft.AspNetCore.Mvc;
 
 namespace DisputePortal.Modules.DebitOrders.Application;
 
@@ -49,31 +50,41 @@ internal sealed record MandateDto(
 /// <summary>Query string for the debit order list.</summary>
 internal sealed class DebitOrderListQuery
 {
+    [FromQuery(Name = "status")]
     public DebitOrderStatus? Status { get; init; }
 
+    [FromQuery(Name = "mandateType")]
     public MandateType? MandateType { get; init; }
 
     /// <summary>Earliest action date, inclusive.</summary>
+    [FromQuery(Name = "from")]
     public DateOnly? From { get; init; }
 
     /// <summary>Latest action date, inclusive.</summary>
+    [FromQuery(Name = "to")]
     public DateOnly? To { get; init; }
 
     /// <summary>One of: -actionDate (default), actionDate, -amount, amount.</summary>
+    [FromQuery(Name = "sort")]
     public string? Sort { get; init; }
 
+    [FromQuery(Name = "page")]
     public int? Page { get; init; }
 
+    [FromQuery(Name = "pageSize")]
     public int? PageSize { get; init; }
 }
 
 /// <summary>Query string for the mandate list.</summary>
 internal sealed class MandateListQuery
 {
+    [FromQuery(Name = "type")]
     public MandateType? Type { get; init; }
 
+    [FromQuery(Name = "page")]
     public int? Page { get; init; }
 
+    [FromQuery(Name = "pageSize")]
     public int? PageSize { get; init; }
 }
 

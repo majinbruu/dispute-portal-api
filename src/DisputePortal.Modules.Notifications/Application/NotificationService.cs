@@ -3,6 +3,7 @@ using DisputePortal.Modules.Disputes.Contracts;
 using DisputePortal.Modules.Notifications.Domain;
 using DisputePortal.SharedKernel;
 using FluentValidation;
+using Microsoft.AspNetCore.Mvc;
 
 namespace DisputePortal.Modules.Notifications.Application;
 
@@ -20,10 +21,13 @@ internal sealed record UnreadCountDto(int Unread);
 /// <summary>Query string for the inbox.</summary>
 internal sealed class NotificationListQuery
 {
+    [FromQuery(Name = "unreadOnly")]
     public bool? UnreadOnly { get; init; }
 
+    [FromQuery(Name = "page")]
     public int? Page { get; init; }
 
+    [FromQuery(Name = "pageSize")]
     public int? PageSize { get; init; }
 }
 
