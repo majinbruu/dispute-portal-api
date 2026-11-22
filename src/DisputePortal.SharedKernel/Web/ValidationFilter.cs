@@ -18,6 +18,19 @@ public sealed class ValidationFilter<T> : IEndpointFilter
         }
 
         var result = await validator.ValidateAsync(argument, context.HttpContext.RequestAborted);
-        return result.IsValid ? await next(context) : ProblemResults.Validation(result.ToDictionary());
+        if (result.IsValid)
+        {
+            return await next(context);
+        }
+
+        // Field names in the response match the JSON and query string names the client sent, which are camelCase.
+        var errors = result.Errors
+            .GroupBy(failure => ToCamelCase(failure.PropertyName), StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Select(failure => failure.ErrorMessage).ToArray(), StringComparer.Ordinal);
+
+        return ProblemResults.Validation(errors);
     }
+
+    private static string ToCamelCase(string name) =>
+        string.IsNullOrEmpty(name) || char.IsLower(name[0]) ? name : char.ToLowerInvariant(name[0]) + name[1..];
 }
