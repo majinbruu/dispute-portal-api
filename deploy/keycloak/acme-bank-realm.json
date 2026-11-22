@@ -1,0 +1,135 @@
+{
+  "realm": "acme-bank",
+  "displayName": "ACME Bank",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "loginWithEmailAllowed": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "roles": {
+    "realm": [
+      {
+        "name": "customer",
+        "description": "A bank customer who can view and dispute their own debit orders."
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "dispute-portal-web",
+      "name": "Dispute Portal web app",
+      "description": "Single-page app. Public client: Authorization Code flow with PKCE, no client secret.",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "dispute-portal-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "realm-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "dispute-portal-cli",
+      "name": "Dispute Portal command-line client (demo only)",
+      "description": "DEMO ONLY. Lets a reviewer get a token with curl to call the API directly. A real realm would not enable the password grant.",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "protocolMappers": [
+        {
+          "name": "api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "dispute-portal-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "realm-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "id": "8f14e45f-ceea-4672-a9d6-5f0c1d2e3a01",
+      "username": "thandi",
+      "firstName": "Thandi",
+      "lastName": "Nkosi",
+      "email": "thandi@acmebank.example",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": ["customer"],
+      "credentials": [{ "type": "password", "value": "AcmeDemo!2026", "temporary": false }]
+    },
+    {
+      "id": "8f14e45f-ceea-4672-a9d6-5f0c1d2e3a02",
+      "username": "sipho",
+      "firstName": "Sipho",
+      "lastName": "Dlamini",
+      "email": "sipho@acmebank.example",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": ["customer"],
+      "credentials": [{ "type": "password", "value": "AcmeDemo!2026", "temporary": false }]
+    },
+    {
+      "id": "8f14e45f-ceea-4672-a9d6-5f0c1d2e3a03",
+      "username": "lerato",
+      "firstName": "Lerato",
+      "lastName": "Mokoena",
+      "email": "lerato@acmebank.example",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": ["customer"],
+      "credentials": [{ "type": "password", "value": "AcmeDemo!2026", "temporary": false }]
+    }
+  ]
+}

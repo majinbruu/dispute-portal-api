@@ -1,8 +1,96 @@
+# Full stack for local review: PostgreSQL, Keycloak, the API and the web app.
+#
+#   git clone https://github.com/majinbruu/dispute-portal-api
+#   git clone https://github.com/majinbruu/dispute-portal-web     (next to the API repo)
+#   cd dispute-portal-api && docker compose up --build
+#
+# Then open http://localhost:3000. All values here are demo defaults; copy .env.example to .env to change them.
 name: dispute-portal
 
 services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: dispute_portal
+      POSTGRES_USER: dispute_portal
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-dev-only}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dispute_portal -d dispute_portal"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.2
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-local-dev-only}
+      # The browser reaches Keycloak at this public URL, so tokens carry it as their issuer.
+      KC_HOSTNAME: http://localhost:${KEYCLOAK_PORT:-8080}
+      # The API reaches Keycloak by its service name. Dynamic back-channel lets it fetch signing keys from that address.
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HEALTH_ENABLED: "true"
+      JAVA_OPTS_KC_HEAP: "-Xms128m -Xmx512m"
+    volumes:
+      - ./deploy/keycloak:/opt/keycloak/data/import:ro
+    ports:
+      - "${KEYCLOAK_PORT:-8080}:8080"
+    healthcheck:
+      # The image has no curl. This asks the management port for readiness using bash's built-in TCP support.
+      test:
+        - CMD-SHELL
+        - >
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '"status": "UP"' <&3
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    restart: unless-stopped
+
   api:
     build:
       context: .
+    environment:
+      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=dispute_portal;Username=dispute_portal;Password=${POSTGRES_PASSWORD:-local-dev-only}
+      Auth__Authority: http://localhost:${KEYCLOAK_PORT:-8080}/realms/acme-bank
+      Auth__MetadataAddress: http://keycloak:8080/realms/acme-bank/.well-known/openid-configuration
+      Auth__Audience: dispute-portal-api
+      Auth__RequireHttpsMetadata: "false"
+      Database__MigrateOnStartup: "true"
+      Seed__Enabled: "true"
     ports:
       - "${API_PORT:-5080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+
+  web:
+    build:
+      # The web repo is expected next to this one. Set WEB_CONTEXT in .env if it lives elsewhere.
+      context: ${WEB_CONTEXT:-../dispute-portal-web}
+    environment:
+      OIDC_AUTHORITY: http://localhost:${KEYCLOAK_PORT:-8080}/realms/acme-bank
+      OIDC_ORIGIN: http://localhost:${KEYCLOAK_PORT:-8080}
+      OIDC_CLIENT_ID: dispute-portal-web
+      API_UPSTREAM: http://api:8080
+    ports:
+      - "${WEB_PORT:-3000}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
