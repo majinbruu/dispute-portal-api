@@ -31,8 +31,60 @@ jobs:
         run: dotnet format DisputePortal.sln --verify-no-changes --no-restore
       - name: Build (warnings are errors)
         run: dotnet build DisputePortal.sln --configuration Release --no-restore
-      - name: Unit and architecture tests
-        run: dotnet test DisputePortal.sln --configuration Release --no-build
+      - name: Check the OpenAPI contract is committed
+        # The build regenerates docs/api/openapi.json. A difference means the API changed without the contract being updated.
+        run: git diff --exit-code -- docs/api/openapi.json
+      - name: Architecture tests
+        run: dotnet test tests/DisputePortal.ArchitectureTests --configuration Release --no-build
+      - name: Unit tests with coverage threshold
+        # 80% line coverage is required on domain and application code. Infrastructure and generated code are excluded.
+        run: >
+          dotnet test tests/DisputePortal.UnitTests --configuration Release --no-build
+          /p:CollectCoverage=true /p:Threshold=80 /p:ThresholdType=line /p:ThresholdStat=total
+          "/p:Include=[DisputePortal.Modules.*]DisputePortal.Modules.*.Domain.*%2c[DisputePortal.Modules.*]DisputePortal.Modules.*.Application.*%2c[DisputePortal.SharedKernel]DisputePortal.SharedKernel.*"
+          "/p:Exclude=[*]DisputePortal.SharedKernel.Web.*"
+
+  smoke:
+    name: Start against PostgreSQL
+    # Not an integration test suite. It proves the migrations apply to a real database and the service reports ready.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: dispute_portal
+          POSTGRES_USER: dispute_portal
+          POSTGRES_PASSWORD: ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dispute_portal -d dispute_portal"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=dispute_portal;Username=dispute_portal;Password=ci-only
+      Database__MigrateOnStartup: "true"
+      Seed__Enabled: "true"
+      ASPNETCORE_URLS: http://localhost:5080
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+      - name: Build
+        run: dotnet build src/DisputePortal.Api --configuration Release -p:OpenApiGenerateDocuments=false
+      - name: Start the API and wait until it is ready
+        run: |
+          dotnet src/DisputePortal.Api/bin/Release/net10.0/DisputePortal.Api.dll > api.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://localhost:5080/health/ready > /dev/null; then
+              echo "Ready after ${attempt} attempts"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "The API did not become ready" && cat api.log && exit 1
+      - name: Protected endpoints reject anonymous calls
+        run: test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://localhost:5080/api/v1/debit-orders)" = "401"
 
   image:
     name: Docker image
