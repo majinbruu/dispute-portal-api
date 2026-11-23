@@ -21,7 +21,7 @@ internal sealed class DisputesSeeder(DisputesDbContext db, IDebitOrderDirectory 
 
         var now = timeProvider.GetUtcNow();
 
-        var refunded = await SubmitAsync(DemoData.RefundedDebitOrderId, "MD01", null, now.AddDays(-9), cancellationToken);
+        var refunded = await SubmitAsync(DemoData.RefundedDebitOrderId, "MD01", now.AddDays(-9), cancellationToken);
         if (refunded is not null)
         {
             var sentAt = now.AddDays(-9).AddMinutes(2);
@@ -29,13 +29,13 @@ internal sealed class DisputesSeeder(DisputesDbContext db, IDebitOrderDirectory 
             refunded.MarkRefunded(sentAt.AddMinutes(3));
         }
 
-        await SubmitAsync(DemoData.PendingDebitOrderId, "AM09", "The amount went up without notice.", now, cancellationToken);
-        await SubmitAsync(DemoData.DeclinedDebitOrderId, "MD06", "I cancelled this membership.", now, cancellationToken);
+        await SubmitAsync(DemoData.PendingDebitOrderId, "AM09", now, cancellationToken);
+        await SubmitAsync(DemoData.DeclinedDebitOrderId, "MD06", now, cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task<Dispute?> SubmitAsync(Guid debitOrderId, string reasonCode, string? comment, DateTimeOffset submittedAt, CancellationToken cancellationToken)
+    private async Task<Dispute?> SubmitAsync(Guid debitOrderId, string reasonCode, DateTimeOffset submittedAt, CancellationToken cancellationToken)
     {
         var debitOrder = await debitOrders.FindAsync(debitOrderId, DemoData.Thandi, cancellationToken);
         if (debitOrder is null)
@@ -58,7 +58,6 @@ internal sealed class DisputesSeeder(DisputesDbContext db, IDebitOrderDirectory 
                 debitOrder.CreditorName,
                 debitOrder.DebtorAccountMasked),
             DisputeReasons.Find(reasonCode)!,
-            comment,
             submittedAt);
 
         db.Disputes.Add(dispute);

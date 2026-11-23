@@ -17,7 +17,7 @@ internal enum MandateKind
     Registered,
 }
 
-internal sealed record SubmitDisputeRequest(Guid DebitOrderId, string ReasonCode, string? Comment);
+internal sealed record SubmitDisputeRequest(Guid DebitOrderId, string ReasonCode);
 
 internal sealed record DisputeReasonDto(string Code, string Description);
 
@@ -51,7 +51,6 @@ internal sealed record DisputeDetailDto(
     DateOnly ActionDate,
     string ReasonCode,
     string ReasonDescription,
-    string? Comment,
     DisputeStatus Status,
     DisputeState State,
     DateTimeOffset SubmittedAt,
@@ -104,7 +103,6 @@ internal static class DisputeMapper
         dispute.ActionDate,
         dispute.ReasonCode,
         DescribeReason(dispute.ReasonCode),
-        dispute.Comment,
         dispute.Status,
         StateOf(dispute),
         dispute.SubmittedAt,

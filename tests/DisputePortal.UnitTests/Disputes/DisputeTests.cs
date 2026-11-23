@@ -15,7 +15,7 @@ internal static class DisputeTestData
         mandateType, "MRN000000001", "Vodacom", "******7890");
 
     public static Dispute Submitted(string reasonCode = "MD01", string mandateType = DisputeReason.Registered, string transactionId = "ACME20261101000001") =>
-        Dispute.Submit(Guid.NewGuid(), "DSP-20261122-ABC234", Customer, DebitOrder(mandateType, transactionId), DisputeReasons.Find(reasonCode)!, " Not mine ", Now);
+        Dispute.Submit(Guid.NewGuid(), "DSP-20261122-ABC234", Customer, DebitOrder(mandateType, transactionId), DisputeReasons.Find(reasonCode)!, Now);
 }
 
 public class DisputeLifecycleTests
@@ -27,7 +27,6 @@ public class DisputeLifecycleTests
 
         dispute.Status.ShouldBe(DisputeStatus.Submitted);
         dispute.Amount.ShouldBe(599m);
-        dispute.Comment.ShouldBe("Not mine");
         dispute.IsCompleted.ShouldBeFalse();
         dispute.Events.Select(e => e.Status).ShouldBe([DisputeStatus.Submitted]);
         dispute.DomainEvents.Count.ShouldBe(1);

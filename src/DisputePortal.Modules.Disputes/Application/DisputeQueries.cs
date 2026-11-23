@@ -28,8 +28,6 @@ internal sealed class DisputeQueries(IDisputeRepository disputes)
 
 internal sealed class SubmitDisputeRequestValidator : AbstractValidator<SubmitDisputeRequest>
 {
-    public const int MaxCommentLength = 500;
-
     public SubmitDisputeRequestValidator()
     {
         RuleFor(r => r.DebitOrderId).NotEmpty();
@@ -37,7 +35,6 @@ internal sealed class SubmitDisputeRequestValidator : AbstractValidator<SubmitDi
             .NotEmpty()
             .Must(code => DisputeReasons.Find(code) is not null)
             .WithMessage($"Reason code must be one of: {string.Join(", ", DisputeReasons.All.Select(r => r.Code))}.");
-        RuleFor(r => r.Comment).MaximumLength(MaxCommentLength);
     }
 }
 

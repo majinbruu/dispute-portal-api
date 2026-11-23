@@ -6,7 +6,7 @@ using DisputePortal.SharedKernel;
 
 namespace DisputePortal.Modules.Disputes.Application;
 
-internal sealed record SubmitDisputeCommand(Guid CustomerId, Guid DebitOrderId, string ReasonCode, string? Comment, string IdempotencyKey);
+internal sealed record SubmitDisputeCommand(Guid CustomerId, Guid DebitOrderId, string ReasonCode, string IdempotencyKey);
 
 internal sealed record SubmitDisputeOutcome(Dispute Dispute, bool Replayed);
 
@@ -65,7 +65,6 @@ internal sealed class SubmitDisputeHandler(IDebitOrderDirectory debitOrders, IDi
                 debitOrder.CreditorName,
                 debitOrder.DebtorAccountMasked),
             reason,
-            command.Comment,
             now);
 
         var idempotencyRecord = new IdempotencyRecord(command.CustomerId, command.IdempotencyKey, requestHash, dispute.Id, now);
@@ -100,7 +99,7 @@ internal sealed class SubmitDisputeHandler(IDebitOrderDirectory debitOrders, IDi
 
     private static string HashRequest(SubmitDisputeCommand command)
     {
-        var canonical = $"{command.DebitOrderId:N}|{command.ReasonCode}|{command.Comment?.Trim()}";
+        var canonical = $"{command.DebitOrderId:N}|{command.ReasonCode}";
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
     }
 }

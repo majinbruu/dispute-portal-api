@@ -46,7 +46,6 @@ internal sealed class DisputesDbContext(DbContextOptions<DisputesDbContext> opti
             dispute.Property(d => d.CreditorName).HasMaxLength(140);
             dispute.Property(d => d.DebtorAccountMasked).HasMaxLength(34);
             dispute.Property(d => d.ReasonCode).HasMaxLength(4);
-            dispute.Property(d => d.Comment).HasMaxLength(500);
             dispute.Property(d => d.Status).HasConversion<string>().HasMaxLength(20);
             dispute.Property(d => d.OutcomeNote).HasMaxLength(500);
             dispute.Property(d => d.ReturnPayload).HasColumnType("jsonb");

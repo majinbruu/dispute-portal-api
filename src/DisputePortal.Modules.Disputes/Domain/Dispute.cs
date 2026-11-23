@@ -100,8 +100,6 @@ internal sealed class Dispute
 
     public string ReasonCode { get; private set; } = null!;
 
-    public string? Comment { get; private set; }
-
     public DisputeStatus Status { get; private set; }
 
     public DateTimeOffset SubmittedAt { get; private set; }
@@ -130,7 +128,6 @@ internal sealed class Dispute
         Guid customerId,
         DisputedDebitOrder debitOrder,
         DisputeReason reason,
-        string? comment,
         DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reference);
@@ -156,7 +153,6 @@ internal sealed class Dispute
             CreditorName = debitOrder.CreditorName,
             DebtorAccountMasked = debitOrder.DebtorAccountMasked,
             ReasonCode = reason.Code,
-            Comment = string.IsNullOrWhiteSpace(comment) ? null : comment.Trim(),
             Status = DisputeStatus.Submitted,
             SubmittedAt = now,
         };
@@ -173,7 +169,7 @@ internal sealed class Dispute
         Status = DisputeStatus.SentToScheme;
         SentToSchemeAt = now;
         ReturnPayload = returnPayload;
-        Record(DisputeStatus.SentToScheme, "Your dispute was sent to the service provider's bank.", now);
+        Record(DisputeStatus.SentToScheme, "Your dispute was sent for processing.", now);
     }
 
     public void MarkRefunded(DateTimeOffset now)
@@ -182,7 +178,7 @@ internal sealed class Dispute
 
         Status = DisputeStatus.Refunded;
         CompletedAt = now;
-        OutcomeNote = "This dispute is successful and a refund has been made to your account.";
+        OutcomeNote = "Your account has been credited.";
         Record(DisputeStatus.Refunded, OutcomeNote, now);
     }
 

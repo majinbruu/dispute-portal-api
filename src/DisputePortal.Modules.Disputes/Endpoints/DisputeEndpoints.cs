@@ -73,7 +73,7 @@ internal static class DisputeEndpoints
         }
 
         var result = await handler.HandleAsync(
-            new SubmitDisputeCommand(customer.CustomerId, request.DebitOrderId, request.ReasonCode, request.Comment, idempotencyKey.Trim()),
+            new SubmitDisputeCommand(customer.CustomerId, request.DebitOrderId, request.ReasonCode, idempotencyKey.Trim()),
             cancellationToken);
 
         if (!result.IsSuccess)
