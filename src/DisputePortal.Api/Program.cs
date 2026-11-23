@@ -4,9 +4,10 @@ using DisputePortal.Api.Hosting;
 using DisputePortal.Modules.DebitOrders;
 using DisputePortal.Modules.Disputes;
 using DisputePortal.Modules.Notifications;
+using DisputePortal.SharedKernel.Web;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.OpenApi;
 using Prometheus;
-using Scalar.AspNetCore;
 
 if (args.Contains(HealthProbe.Argument))
 {
@@ -35,6 +36,12 @@ builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.C
 builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
     context.ProblemDetails.Extensions.TryAdd("traceId", Activity.Current?.Id ?? context.HttpContext.TraceIdentifier));
 
+// Each module contributes its controllers. They are internal to the module and discovered through its assembly.
+builder.Services.AddPortalControllers(
+    typeof(DebitOrdersModule).Assembly,
+    typeof(DisputesModule).Assembly,
+    typeof(NotificationsModule).Assembly);
+
 builder.Services.AddCustomerAuthentication(configuration);
 builder.Services.AddPortalRateLimiting(configuration);
 
@@ -46,6 +53,19 @@ builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document,
         "Debit orders, mandates, disputes and notifications for the signed-in customer. " +
         "All endpoints under /api require a Keycloak access token with the 'customer' role. " +
         "Errors are RFC 9457 problem documents with a stable 'code' and a 'traceId'.";
+
+    // Declares bearer authentication, which gives the Swagger page an Authorize button for pasting an access token.
+    document.Components ??= new OpenApiComponents();
+    document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
+    document.Components.SecuritySchemes["bearer"] = new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Description = "A Keycloak access token for a user with the 'customer' role.",
+    };
+    document.Security ??= [];
+    document.Security.Add(new OpenApiSecurityRequirement { [new OpenApiSecuritySchemeReference("bearer", document)] = [] });
     return Task.CompletedTask;
 }));
 
@@ -113,9 +133,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 
-app.MapDebitOrdersEndpoints();
-app.MapDisputesEndpoints();
-app.MapNotificationsEndpoints();
+app.MapControllers();
 
 // Liveness says the process is up. Readiness says it can reach its database, so traffic is only routed when it can serve.
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
@@ -125,7 +143,12 @@ app.MapMetrics();
 if (configuration.GetValue("ApiDocs:Enabled", true))
 {
     app.MapOpenApi();
-    app.MapScalarApiReference();
+    app.UseSwaggerUI(options =>
+    {
+        options.RoutePrefix = "swagger";
+        options.SwaggerEndpoint("/openapi/v1.json", "ACME Bank Dispute Portal API v1");
+        options.DocumentTitle = "ACME Bank Dispute Portal API";
+    });
 }
 
 await app.RunAsync();
