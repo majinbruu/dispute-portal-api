@@ -1,0 +1,87 @@
+using DisputePortal.Modules.Disputes.Application;
+using DisputePortal.SharedKernel;
+using DisputePortal.SharedKernel.Web;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+
+namespace DisputePortal.Modules.Disputes.Controllers;
+
+[ApiController]
+[Route("api/v1/disputes")]
+[Authorize(Policy = ApiConventions.CustomerPolicy)]
+[Tags("Disputes")]
+internal sealed class DisputesController(SubmitDisputeHandler submitDispute, DisputeQueries queries, ICurrentCustomer customer) : ControllerBase
+{
+    private const int MaxIdempotencyKeyLength = 100;
+
+    [HttpPost(Name = "SubmitDispute")]
+    [EnableRateLimiting(ApiConventions.DisputeSubmissionRateLimit)]
+    [EndpointSummary("Raises a dispute against a debit order. Requires an Idempotency-Key header, which makes retries safe.")]
+    [ProducesResponseType<DisputeDetailDto>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> Submit(
+        [FromBody] SubmitDisputeRequest request,
+        [FromHeader(Name = ApiConventions.IdempotencyKeyHeader)] string? idempotencyKey,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(idempotencyKey) || idempotencyKey.Length > MaxIdempotencyKeyLength)
+        {
+            return this.ValidationFailed(
+                ApiConventions.IdempotencyKeyHeader,
+                $"The {ApiConventions.IdempotencyKeyHeader} header is required and must be at most {MaxIdempotencyKeyLength} characters.");
+        }
+
+        var result = await submitDispute.HandleAsync(
+            new SubmitDisputeCommand(customer.CustomerId, request.DebitOrderId, request.ReasonCode, idempotencyKey.Trim()),
+            cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return this.ToProblem(result.Error!);
+        }
+
+        if (result.Value.Replayed)
+        {
+            Response.Headers["Idempotent-Replayed"] = "true";
+        }
+
+        var dispute = DisputeMapper.ToDetail(result.Value.Dispute);
+        return Created($"/api/v1/disputes/{dispute.Id}", dispute);
+    }
+
+    [HttpGet(Name = "ListDisputes")]
+    [EndpointSummary("Lists the customer's disputes, newest first. Filter by state to get pending or completed disputes.")]
+    [ProducesResponseType<PagedResult<DisputeSummaryDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<PagedResult<DisputeSummaryDto>>> List([FromQuery] DisputeListQuery query, CancellationToken cancellationToken) =>
+        Ok(await queries.ListAsync(customer.CustomerId, query, cancellationToken));
+
+    [HttpGet("{id:guid}", Name = "GetDispute")]
+    [EndpointSummary("Returns one dispute with its progress timeline.")]
+    [ProducesResponseType<DisputeDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<DisputeDetailDto>> Get(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await queries.GetAsync(customer.CustomerId, id, cancellationToken);
+        return result.IsSuccess ? Ok(result.Value) : this.ToProblem(result.Error!);
+    }
+}
+
+[ApiController]
+[Route("api/v1/dispute-reasons")]
+[Authorize(Policy = ApiConventions.CustomerPolicy)]
+[Tags("Disputes")]
+internal sealed class DisputeReasonsController : ControllerBase
+{
+    [HttpGet(Name = "ListDisputeReasons")]
+    [EndpointSummary("Lists the dispute reasons a customer can choose, optionally only those allowed for a mandate type.")]
+    [ProducesResponseType<IReadOnlyList<DisputeReasonDto>>(StatusCodes.Status200OK)]
+    public ActionResult<IReadOnlyList<DisputeReasonDto>> List([FromQuery] MandateKind? mandateType) =>
+        Ok(DisputeQueries.ReasonsFor(mandateType));
+}

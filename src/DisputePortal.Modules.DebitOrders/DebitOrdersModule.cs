@@ -1,9 +1,7 @@
 using DisputePortal.Modules.DebitOrders.Application;
 using DisputePortal.Modules.DebitOrders.Contracts;
-using DisputePortal.Modules.DebitOrders.Endpoints;
 using DisputePortal.Modules.DebitOrders.Infrastructure;
 using FluentValidation;
-using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -29,12 +27,6 @@ public static class DebitOrdersModule
 
     public static IHealthChecksBuilder AddDebitOrdersHealthChecks(this IHealthChecksBuilder builder) =>
         builder.AddDbContextCheck<DebitOrdersDbContext>("debit-orders-db", tags: ["ready"]);
-
-    public static IEndpointRouteBuilder MapDebitOrdersEndpoints(this IEndpointRouteBuilder app)
-    {
-        DebitOrderEndpoints.Map(app);
-        return app;
-    }
 
     public static async Task MigrateDebitOrdersAsync(this IServiceProvider services, CancellationToken cancellationToken = default)
     {

@@ -35,7 +35,7 @@ public class ModuleBoundaryTests
     {
         var result = Types.InAssembly(DisputesAssembly)
             .ShouldNot().HaveDependencyOnAny(
-                $"{DebitOrders}.Domain", $"{DebitOrders}.Application", $"{DebitOrders}.Infrastructure", $"{DebitOrders}.Endpoints", Notifications)
+                $"{DebitOrders}.Domain", $"{DebitOrders}.Application", $"{DebitOrders}.Infrastructure", $"{DebitOrders}.Controllers", Notifications)
             .GetResult();
 
         AssertPasses(result);
@@ -46,7 +46,7 @@ public class ModuleBoundaryTests
     {
         var result = Types.InAssembly(NotificationsAssembly)
             .ShouldNot().HaveDependencyOnAny(
-                $"{Disputes}.Domain", $"{Disputes}.Application", $"{Disputes}.Infrastructure", $"{Disputes}.Endpoints", DebitOrders)
+                $"{Disputes}.Domain", $"{Disputes}.Application", $"{Disputes}.Infrastructure", $"{Disputes}.Controllers", DebitOrders)
             .GetResult();
 
         AssertPasses(result);
@@ -73,7 +73,7 @@ public class ModuleBoundaryTests
         var result = Types.InAssembly(AssemblyOf(module))
             .That().ResideInNamespace($"{module}.Domain")
             .ShouldNot().HaveDependencyOnAny(
-                $"{module}.Application", $"{module}.Infrastructure", $"{module}.Endpoints",
+                $"{module}.Application", $"{module}.Infrastructure", $"{module}.Controllers",
                 "Microsoft.EntityFrameworkCore", "Microsoft.AspNetCore", "Npgsql")
             .GetResult();
 
@@ -86,7 +86,7 @@ public class ModuleBoundaryTests
     {
         var result = Types.InAssembly(AssemblyOf(module))
             .That().ResideInNamespace($"{module}.Application")
-            .ShouldNot().HaveDependencyOnAny($"{module}.Infrastructure", $"{module}.Endpoints", "Microsoft.EntityFrameworkCore", "Npgsql")
+            .ShouldNot().HaveDependencyOnAny($"{module}.Infrastructure", $"{module}.Controllers", "Microsoft.EntityFrameworkCore", "Npgsql")
             .GetResult();
 
         AssertPasses(result);

@@ -1,9 +1,7 @@
 using DisputePortal.Modules.DebitOrders.Contracts;
 using DisputePortal.Modules.Disputes.Application;
-using DisputePortal.Modules.Disputes.Endpoints;
 using DisputePortal.Modules.Disputes.Infrastructure;
 using FluentValidation;
-using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -45,12 +43,6 @@ public static class DisputesModule
 
     public static IHealthChecksBuilder AddDisputesHealthChecks(this IHealthChecksBuilder builder) =>
         builder.AddDbContextCheck<DisputesDbContext>("disputes-db", tags: ["ready"]);
-
-    public static IEndpointRouteBuilder MapDisputesEndpoints(this IEndpointRouteBuilder app)
-    {
-        DisputeEndpoints.Map(app);
-        return app;
-    }
 
     public static async Task MigrateDisputesAsync(this IServiceProvider services, CancellationToken cancellationToken = default)
     {

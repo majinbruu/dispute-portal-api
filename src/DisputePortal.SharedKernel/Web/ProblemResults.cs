@@ -1,21 +1,32 @@
-using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace DisputePortal.SharedKernel.Web;
 
 /// <summary>Turns expected business errors into RFC 9457 problem details with a stable code and the trace ID.</summary>
 public static class ProblemResults
 {
-    public static IResult ToProblem(this Error error) => Results.Problem(
-        statusCode: StatusCodeFor(error.Type),
-        title: TitleFor(error.Type),
-        detail: error.Message,
-        extensions: Extensions(error.Code));
+    /// <summary>The problem response for an expected business error. The trace ID is added by the problem details factory.</summary>
+    public static ObjectResult ToProblem(this ControllerBase controller, Error error)
+    {
+        var result = controller.Problem(detail: error.Message, statusCode: StatusCodeFor(error.Type), title: TitleFor(error.Type));
+        if (result.Value is ProblemDetails problem)
+        {
+            problem.Extensions["code"] = error.Code;
+        }
 
-    public static IResult Validation(IDictionary<string, string[]> errors) => Results.ValidationProblem(
-        errors,
-        detail: "One or more fields are invalid.",
-        extensions: Extensions("validation_failed"));
+        return result;
+    }
+
+    /// <summary>A 400 response for one invalid field, in the same shape as every other validation failure.</summary>
+    public static IActionResult ValidationFailed(this ControllerBase controller, string field, string message)
+    {
+        controller.ModelState.AddModelError(field, message);
+        var apiBehavior = controller.HttpContext.RequestServices.GetRequiredService<IOptions<ApiBehaviorOptions>>();
+        return apiBehavior.Value.InvalidModelStateResponseFactory(controller.ControllerContext);
+    }
 
     public static int StatusCodeFor(ErrorType type) => type switch
     {
@@ -33,11 +44,5 @@ public static class ProblemResults
         ErrorType.Conflict => "The request conflicts with the current state.",
         ErrorType.Unprocessable => "The request cannot be processed.",
         _ => "An unexpected error occurred.",
-    };
-
-    private static Dictionary<string, object?> Extensions(string code) => new()
-    {
-        ["code"] = code,
-        ["traceId"] = Activity.Current?.Id,
     };
 }
