@@ -106,7 +106,7 @@ internal sealed class DebitOrder
             CreditorShortName = mandate.CreditorShortName,
             StatementText = request.StatementText,
             DebtorAccountMasked = AccountNumber.Mask(request.DebtorAccountNumber),
-            Status = response.Accepted ? DebitOrderStatus.Successful : DebitOrderStatus.Failed,
+            Status = response.Accepted ? DebitOrderStatus.Accepted : DebitOrderStatus.Rejected,
             StatusReasonCode = response.Accepted ? null : response.ReasonCode,
             IsDisputableUnderMandate = decision.IsDisputable,
             DisputabilityReason = decision.Reason,
@@ -121,9 +121,9 @@ internal sealed class DebitOrder
     /// </summary>
     public DisputeEligibility EvaluateEligibility(DateOnly today, bool alreadyDisputed)
     {
-        if (Status == DebitOrderStatus.Failed)
+        if (Status == DebitOrderStatus.Rejected)
         {
-            return DisputeEligibility.CollectionFailed;
+            return DisputeEligibility.CollectionRejected;
         }
 
         if (alreadyDisputed)

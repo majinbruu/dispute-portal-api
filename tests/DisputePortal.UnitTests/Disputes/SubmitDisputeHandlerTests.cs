@@ -46,7 +46,7 @@ public class SubmitDisputeHandlerTests
 
     [Theory]
     [InlineData("within_mandate_terms")]
-    [InlineData("collection_failed")]
+    [InlineData("collection_rejected")]
     [InlineData("dispute_window_closed")]
     public async Task A_debit_order_that_is_not_disputable_is_refused_with_its_reason(string code)
     {
@@ -126,7 +126,7 @@ public class SubmitDisputeHandlerTests
         DisputeReason.Registered, "MRN000000001", "Vodacom", "******7890", IneligibilityCode: null, IneligibilityMessage: null);
 
     private static SubmitDisputeCommand Command(Guid debitOrderId, string reasonCode = "MD01", string idempotencyKey = "key-1") =>
-        new(Customer, debitOrderId, reasonCode, "Not mine", idempotencyKey);
+        new(Customer, debitOrderId, reasonCode, idempotencyKey);
 }
 
 public class SubmitDisputeRequestValidatorTests
@@ -136,17 +136,16 @@ public class SubmitDisputeRequestValidatorTests
     [Fact]
     public void Accepts_a_valid_request()
     {
-        _validator.TestValidate(new SubmitDisputeRequest(Guid.NewGuid(), "AM09", null)).ShouldNotHaveAnyValidationErrors();
+        _validator.TestValidate(new SubmitDisputeRequest(Guid.NewGuid(), "AM09")).ShouldNotHaveAnyValidationErrors();
     }
 
     [Fact]
-    public void Rejects_a_missing_debit_order_an_unknown_reason_and_a_long_comment()
+    public void Rejects_a_missing_debit_order_and_an_unknown_reason()
     {
-        var result = _validator.TestValidate(new SubmitDisputeRequest(Guid.Empty, "NOPE", new string('x', 501)));
+        var result = _validator.TestValidate(new SubmitDisputeRequest(Guid.Empty, "NOPE"));
 
         result.ShouldHaveValidationErrorFor(r => r.DebitOrderId);
         result.ShouldHaveValidationErrorFor(r => r.ReasonCode);
-        result.ShouldHaveValidationErrorFor(r => r.Comment);
     }
 }
 

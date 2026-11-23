@@ -63,8 +63,8 @@ internal static class EligibilityMessages
             $"You can dispute this debit order until {debitOrder.LastDisputeDate:d MMMM yyyy}.",
         DisputeEligibility.WithinMandateTerms =>
             "This debit order matches the DebiCheck mandate you approved, so it cannot be disputed. Contact the service provider to query it.",
-        DisputeEligibility.CollectionFailed =>
-            "This debit order was not successful, so no money left your account and there is nothing to dispute.",
+        DisputeEligibility.CollectionRejected =>
+            "This debit order was rejected, so no money left your account and there is nothing to dispute.",
         DisputeEligibility.DisputeWindowClosed =>
             $"The 60-day dispute period ended on {debitOrder.LastDisputeDate:d MMMM yyyy}. Contact the service provider to resolve it.",
         DisputeEligibility.AlreadyDisputed =>

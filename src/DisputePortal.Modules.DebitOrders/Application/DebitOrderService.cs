@@ -78,7 +78,7 @@ internal sealed class DebitOrderDirectory(IDebitOrderStore store, TimeProvider t
     private static string ToErrorCode(DisputeEligibility eligibility) => eligibility switch
     {
         DisputeEligibility.WithinMandateTerms => "within_mandate_terms",
-        DisputeEligibility.CollectionFailed => "collection_failed",
+        DisputeEligibility.CollectionRejected => "collection_rejected",
         DisputeEligibility.DisputeWindowClosed => "dispute_window_closed",
         _ => "not_disputable",
     };

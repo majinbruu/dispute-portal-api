@@ -104,12 +104,12 @@ public class DebitOrderEligibilityTests
     }
 
     [Fact]
-    public void A_failed_collection_cannot_be_disputed_because_nothing_was_debited()
+    public void A_rejected_collection_cannot_be_disputed_because_nothing_was_debited()
     {
         var debitOrder = TestData.DebitOrder(TestData.RegisteredMandate(), TestData.Today.AddDays(-5), response: CollectionResponse.Rejected("AM04"));
 
-        debitOrder.Status.ShouldBe(DebitOrderStatus.Failed);
-        debitOrder.EvaluateEligibility(TestData.Today, alreadyDisputed: false).ShouldBe(DisputeEligibility.CollectionFailed);
+        debitOrder.Status.ShouldBe(DebitOrderStatus.Rejected);
+        debitOrder.EvaluateEligibility(TestData.Today, alreadyDisputed: false).ShouldBe(DisputeEligibility.CollectionRejected);
     }
 
     [Fact]

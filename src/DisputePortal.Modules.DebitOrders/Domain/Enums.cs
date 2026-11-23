@@ -38,11 +38,11 @@ internal enum SequenceType
 /// <summary>Outcome of the collection, from the pacs.002 status report.</summary>
 internal enum DebitOrderStatus
 {
-    /// <summary>Accepted: the money left the customer's account.</summary>
-    Successful,
+    /// <summary>The money left the customer's account.</summary>
+    Accepted,
 
-    /// <summary>Rejected: nothing was debited.</summary>
-    Failed,
+    /// <summary>Nothing was debited.</summary>
+    Rejected,
 }
 
 /// <summary>Why a debit order is, or is not, disputable under the mandate rules. Decided once, when the collection is recorded.</summary>
@@ -59,7 +59,7 @@ internal enum DisputeEligibility
 {
     Eligible,
     WithinMandateTerms,
-    CollectionFailed,
+    CollectionRejected,
     DisputeWindowClosed,
     AlreadyDisputed,
 }

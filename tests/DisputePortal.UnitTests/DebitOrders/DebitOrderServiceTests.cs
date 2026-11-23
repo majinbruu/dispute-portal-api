@@ -54,14 +54,14 @@ public class DebitOrderServiceTests
     }
 
     [Fact]
-    public async Task Describes_why_a_failed_collection_failed()
+    public async Task Describes_why_a_rejected_collection_was_rejected()
     {
         var failed = _store.Add(TestData.DebitOrder(TestData.RegisteredMandate(), TestData.Today, response: CollectionResponse.Rejected("AM04")));
 
         var result = await Service.GetAsync(TestData.Customer, failed.Id, CancellationToken.None);
 
         result.Value.StatusReason.ShouldBe("Insufficient funds");
-        result.Value.Eligibility.Code.ShouldBe(DisputeEligibility.CollectionFailed);
+        result.Value.Eligibility.Code.ShouldBe(DisputeEligibility.CollectionRejected);
     }
 
     [Fact]
