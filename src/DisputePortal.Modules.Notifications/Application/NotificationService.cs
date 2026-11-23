@@ -131,11 +131,11 @@ internal static class NotificationFactory
             "SentToScheme" => Build(
                 NotificationCategory.DisputeInProgress,
                 "Your dispute is in progress",
-                $"Dispute {message.Reference} was sent to {message.CreditorName}'s bank. We will let you know the outcome."),
+                $"Dispute {message.Reference} was sent for processing. We will let you know the outcome."),
             "Refunded" => Build(
                 NotificationCategory.DisputeRefunded,
                 "Your dispute was successful",
-                $"Dispute {message.Reference} is successful. {amount} has been refunded to your account."),
+                $"Dispute {message.Reference} is successful. Your account has been credited with {amount}."),
             "Declined" => Build(
                 NotificationCategory.DisputeDeclined,
                 "Your dispute was declined",
