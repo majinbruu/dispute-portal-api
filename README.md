@@ -40,11 +40,11 @@ The brief asks for a system where customers "view transactions and dispute them"
 | Area | Choice |
 | --- | --- |
 | Runtime | .NET 10 (LTS), C# |
-| Web framework | ASP.NET Core minimal APIs |
+| Web framework | ASP.NET Core MVC controllers |
 | Data | PostgreSQL 18, Entity Framework Core 10 with Npgsql, one schema and migration set per module |
 | Authentication | Keycloak 26, OpenID Connect, JWT bearer validation |
 | Validation | FluentValidation |
-| API documentation | Built-in OpenAPI document, Scalar UI |
+| API documentation | Built-in OpenAPI document, Swagger UI |
 | Observability | Structured JSON logs with trace IDs, health checks, Prometheus metrics from .NET meters |
 | Resilience and safety | Transactional outbox, idempotent submission, rate limiting, optimistic concurrency |
 | Tests | xUnit, Shouldly, NetArchTest (architecture rules), Coverlet |
@@ -122,7 +122,7 @@ All four services should show `healthy`. Keycloak is the slowest and can take ab
 | What | Address |
 | --- | --- |
 | Web app | <http://localhost:3000> |
-| API documentation | <http://localhost:5080/scalar> |
+| API documentation (Swagger) | <http://localhost:5080/swagger> |
 | OpenAPI document | <http://localhost:5080/openapi/v1.json> |
 | Keycloak admin console | <http://localhost:8080> (user `admin`, password `local-dev-only`) |
 
@@ -204,7 +204,7 @@ The API is a **modular monolith**: one deployable, split into three modules with
 
 - A module exposes a small public `Contracts` namespace and keeps everything else `internal`.
 - Dependencies run one way: `Notifications` depends on `Disputes` contracts, and `Disputes` on `DebitOrders` contracts. No module reads another module's tables.
-- Inside a module, `Domain` has no dependencies, `Application` holds use cases and ports, `Infrastructure` holds EF Core and workers, and `Endpoints` holds HTTP.
+- Inside a module, `Domain` has no dependencies, `Application` holds use cases and ports, `Infrastructure` holds EF Core and workers, and `Controllers` holds the API controllers. Controllers are internal like the rest of a module, and the host discovers them through each module's assembly.
 - These rules are checked by architecture tests on every build.
 
 **Stateless and safe on many replicas.** Every request carries a token, so any replica can serve it. Background workers claim rows with `SELECT ... FOR UPDATE SKIP LOCKED`, so replicas never process the same dispute or outbox message. The same image runs as an API pod or a worker pod.
@@ -235,7 +235,7 @@ Design decisions are recorded in [`docs/adr`](docs/adr).
 src/
   DisputePortal.Api/                    host: composition, auth, rate limiting, health, metrics, OpenAPI
   DisputePortal.SharedKernel/           money, results, paging, problem details, shared conventions
-  DisputePortal.Modules.DebitOrders/    Domain, Application, Infrastructure, Endpoints, Contracts
+  DisputePortal.Modules.DebitOrders/    Domain, Application, Infrastructure, Controllers, Contracts
   DisputePortal.Modules.Disputes/
   DisputePortal.Modules.Notifications/
 tests/
@@ -289,7 +289,7 @@ These are deliberately simplified, portal-side rules. In a real bank the authori
 
 ## Using the API
 
-Browse and try the API at <http://localhost:5080/scalar>. All paths are under `/api/v1` and need an access token.
+Browse and try the API at <http://localhost:5080/swagger>. All paths are under `/api/v1` and need an access token. To call an endpoint from the Swagger page, get a token as shown below, click **Authorize** and paste it.
 
 | Method and path | Purpose |
 | --- | --- |
@@ -441,7 +441,7 @@ Settings come from `appsettings.json` and environment variables. In an environme
 | `Simulator:RejectReturnsForTransactionIds` | one demo ID | Collections whose dispute the simulated scheme declines |
 | `RateLimiting:RequestsPerMinute` | `300` | General limit per customer |
 | `RateLimiting:DisputeSubmissionsPerMinute` | `5` | Limit on raising disputes per customer |
-| `ApiDocs:Enabled` | `true` | Serve the OpenAPI document and Scalar UI |
+| `ApiDocs:Enabled` | `true` | Serve the OpenAPI document and Swagger UI |
 
 Command-line switches: `--migrate-only` applies migrations and exits, and `--healthcheck` probes the running instance and sets the exit code, which the container health check uses.
 
