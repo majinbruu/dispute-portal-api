@@ -1,4 +1,4 @@
-# 0012. Plain handlers instead of MediatR and AutoMapper
+# 0002. Plain handlers instead of MediatR and AutoMapper
 
 Status: accepted
 
