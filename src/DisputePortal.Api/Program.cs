@@ -140,7 +140,8 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => fa
 app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") });
 app.MapMetrics();
 
-if (configuration.GetValue("ApiDocs:Enabled", true))
+// Off unless a deployment asks for it: the API surface is not advertised by default.
+if (configuration.GetValue("ApiDocs:Enabled", false))
 {
     app.MapOpenApi();
     app.UseSwaggerUI(options =>

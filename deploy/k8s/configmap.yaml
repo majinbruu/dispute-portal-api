@@ -4,6 +4,9 @@ metadata:
   name: dispute-portal-api
 data:
   ASPNETCORE_ENVIRONMENT: Production
+  # Probes and the metrics scraper reach pods by IP address, so the Host header is checked
+  # at the ingress, which only routes the public host name. Outside a cluster the default is localhost.
+  AllowedHosts: "*"
   # The public URL of the identity provider. It must match the issuer in the access tokens.
   Auth__Authority: https://login.example.com/realms/acme-bank
   Auth__Audience: dispute-portal-api

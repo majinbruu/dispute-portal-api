@@ -64,6 +64,8 @@ services:
       Auth__RequireHttpsMetadata: "false"
       Database__MigrateOnStartup: "true"
       Seed__Enabled: "true"
+      # Swagger is off by default and switched on for this local stack.
+      ApiDocs__Enabled: "true"
     ports:
       - "${API_PORT:-5080}:8080"
     depends_on:
