@@ -37,6 +37,14 @@ public class NotificationFactoryTests
     }
 
     [Fact]
+    public void An_amount_in_another_currency_is_shown_with_its_currency_code()
+    {
+        var message = Event("Refunded") with { Currency = "USD" };
+
+        NotificationFactory.Create(Guid.NewGuid(), message)!.Body.ShouldContain("USD 1,250.00");
+    }
+
+    [Fact]
     public void A_declined_notification_includes_the_reason()
     {
         NotificationFactory.Create(Guid.NewGuid(), Event("Declined", "Already reversed."))!.Body.ShouldEndWith("Already reversed.");

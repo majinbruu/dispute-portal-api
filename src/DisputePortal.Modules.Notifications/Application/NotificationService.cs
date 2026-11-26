@@ -120,7 +120,7 @@ internal static class NotificationFactory
     /// <summary>Returns null for a status that has no customer message.</summary>
     public static Notification? Create(Guid messageId, DisputeStatusChanged message)
     {
-        var amount = string.Create(CultureInfo.InvariantCulture, $"R{message.Amount:N2}");
+        var amount = FormatAmount(message.Amount, message.Currency);
 
         return message.Status switch
         {
@@ -146,4 +146,10 @@ internal static class NotificationFactory
         Notification Build(NotificationCategory category, string title, string body) =>
             new(message.CustomerId, messageId, category, title, body, message.DisputeId, message.OccurredAt);
     }
+
+    /// <summary>Rand amounts use the familiar "R" prefix. Any other currency is shown with its ISO 4217 code.</summary>
+    private static string FormatAmount(decimal amount, string currency) =>
+        string.Equals(currency, "ZAR", StringComparison.Ordinal)
+            ? string.Create(CultureInfo.InvariantCulture, $"R{amount:N2}")
+            : string.Create(CultureInfo.InvariantCulture, $"{currency} {amount:N2}");
 }
