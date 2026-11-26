@@ -1,0 +1,25 @@
+# Prometheus alerting rules for the Dispute Portal API. Load with `rule_files` in prometheus.yml,
+# or wrap the groups in a PrometheusRule resource when the cluster runs the Prometheus Operator.
+# These are examples: they have been checked for syntax only, not run against a live Prometheus.
+groups:
+  - name: dispute-portal-outbox
+    rules:
+      - alert: OutboxMessageAbandoned
+        # A message is abandoned after its last retry and nothing picks it up again,
+        # so a customer notification is missing until someone replays it.
+        expr: increase(disputeportal_outbox_abandoned[15m]) > 0
+        labels:
+          severity: page
+        annotations:
+          summary: An outbox message was abandoned after its last delivery attempt.
+          description: >-
+            Find it with: SELECT id, type, attempts, last_error FROM disputes.outbox_messages
+            WHERE processed_at IS NULL AND attempts >= 5. Fix the cause, then reset attempts to 0 to replay it.
+
+      - alert: OutboxDeliveryFailing
+        expr: increase(disputeportal_outbox_failed[10m]) > 5
+        for: 10m
+        labels:
+          severity: warn
+        annotations:
+          summary: Outbox deliveries keep failing and are being retried.

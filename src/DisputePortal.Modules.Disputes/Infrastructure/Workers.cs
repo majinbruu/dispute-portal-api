@@ -158,3 +158,57 @@ internal sealed class OutboxDispatcherWorker(
         await transaction.CommitAsync(cancellationToken);
     }
 }
+
+/// <summary>
+/// Deletes idempotency keys past their retention period so the table does not grow for ever.
+/// A key only has to outlive the client's retries. After that the unique index on the debit order
+/// still stops a second dispute. The delete is safe to run from several replicas at once.
+/// </summary>
+internal sealed class IdempotencyKeyCleanupWorker(
+    IServiceScopeFactory scopeFactory,
+    IOptions<DisputeProcessingOptions> options,
+    TimeProvider timeProvider,
+    ILogger<IdempotencyKeyCleanupWorker> logger)
+    : BackgroundService
+{
+    private static readonly TimeSpan Interval = TimeSpan.FromHours(1);
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        using var timer = new PeriodicTimer(Interval, timeProvider);
+
+        try
+        {
+            do
+            {
+                await DeleteExpiredAsync(stoppingToken);
+            }
+            while (await timer.WaitForNextTickAsync(stoppingToken));
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Shutting down.
+        }
+    }
+
+    private async Task DeleteExpiredAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<DisputesDbContext>();
+            var cutoff = IdempotencyRecord.ExpiryCutoff(timeProvider.GetUtcNow(), options.Value.IdempotencyKeyRetentionHours);
+
+            var deleted = await db.IdempotencyRecords.Where(r => r.CreatedAt < cutoff).ExecuteDeleteAsync(cancellationToken);
+            if (deleted > 0)
+            {
+                logger.LogInformation("Deleted {Count} idempotency keys created before {Cutoff}", deleted, cutoff);
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // A failed clean-up is retried on the next tick. The worker itself must not die.
+            logger.LogError(exception, "Idempotency key clean-up failed");
+        }
+    }
+}

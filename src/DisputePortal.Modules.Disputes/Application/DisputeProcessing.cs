@@ -25,6 +25,9 @@ internal sealed class DisputeProcessingOptions
     public int OutcomeDelaySeconds { get; set; } = 20;
 
     public int BatchSize { get; set; } = 20;
+
+    /// <summary>How long an idempotency key is kept. A client retry is only expected within minutes of the first attempt.</summary>
+    public int IdempotencyKeyRetentionHours { get; set; } = 24;
 }
 
 internal sealed class SchemeSimulatorOptions
@@ -143,6 +146,15 @@ internal sealed class OutboxProcessor(IEnumerable<IDisputeStatusChangedHandler> 
             message.MarkFailed(exception.Message, timeProvider.GetUtcNow());
             PortalMetrics.OutboxMessagesFailed.Add(1);
             logger.LogError(exception, "Outbox message {MessageId} failed on attempt {Attempt}", message.Id, message.Attempts);
+
+            if (message.IsAbandoned)
+            {
+                // Nothing retries this message again. The counter drives the alert in deploy/monitoring.
+                PortalMetrics.OutboxMessagesAbandoned.Add(1);
+                logger.LogCritical(
+                    "Outbox message {MessageId} of type {MessageType} was abandoned after {Attempts} attempts and needs manual attention",
+                    message.Id, message.Type, message.Attempts);
+            }
         }
     }
 }

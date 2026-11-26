@@ -100,6 +100,7 @@ internal sealed class DisputesDbContext(DbContextOptions<DisputesDbContext> opti
             record.HasKey(r => new { r.CustomerId, r.Key });
             record.Property(r => r.Key).HasMaxLength(100);
             record.Property(r => r.RequestHash).HasMaxLength(64).IsFixedLength();
+            record.HasIndex(r => r.CreatedAt);
         });
     }
 

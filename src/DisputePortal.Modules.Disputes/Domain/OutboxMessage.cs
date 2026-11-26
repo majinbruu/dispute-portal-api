@@ -80,4 +80,7 @@ internal sealed class IdempotencyRecord
     public Guid DisputeId { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
+
+    /// <summary>Keys created before this moment are past their retention period. Retention is never less than one hour.</summary>
+    public static DateTimeOffset ExpiryCutoff(DateTimeOffset now, int retentionHours) => now.AddHours(-Math.Max(retentionHours, 1));
 }

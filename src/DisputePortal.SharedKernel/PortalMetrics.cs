@@ -21,4 +21,7 @@ public static class PortalMetrics
 
     public static readonly Counter<long> OutboxMessagesFailed =
         Meter.CreateCounter<long>("outbox_failed", description: "Outbox delivery attempts that failed.");
+
+    public static readonly Counter<long> OutboxMessagesAbandoned =
+        Meter.CreateCounter<long>("outbox_abandoned", description: "Outbox messages given up on after the last retry. Each one needs a person to look at it.");
 }

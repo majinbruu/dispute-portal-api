@@ -36,6 +36,7 @@ public static class DisputesModule
         {
             services.AddHostedService<DisputeProcessorWorker>();
             services.AddHostedService<OutboxDispatcherWorker>();
+            services.AddHostedService<IdempotencyKeyCleanupWorker>();
         }
 
         return services;

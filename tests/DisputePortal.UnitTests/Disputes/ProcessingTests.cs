@@ -90,6 +90,33 @@ public class OutboxProcessorTests
     }
 
     [Fact]
+    public async Task A_message_that_keeps_failing_is_abandoned_after_the_last_attempt()
+    {
+        _handler.Failure = new InvalidOperationException("inbox unavailable");
+        var message = Message();
+
+        for (var attempt = 1; attempt < OutboxMessage.MaxAttempts; attempt++)
+        {
+            await Processor.ProcessAsync(message, CancellationToken.None);
+            message.IsAbandoned.ShouldBeFalse();
+        }
+
+        await Processor.ProcessAsync(message, CancellationToken.None);
+
+        message.IsAbandoned.ShouldBeTrue();
+        message.ProcessedAt.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData(24, 24)]
+    [InlineData(0, 1)]
+    [InlineData(-5, 1)]
+    public void Idempotency_keys_expire_after_the_retention_period_which_is_at_least_one_hour(int configuredHours, int effectiveHours)
+    {
+        IdempotencyRecord.ExpiryCutoff(DisputeTestData.Now, configuredHours).ShouldBe(DisputeTestData.Now.AddHours(-effectiveHours));
+    }
+
+    [Fact]
     public async Task A_payload_that_cannot_be_read_is_recorded_as_a_failure_not_thrown()
     {
         var message = new OutboxMessage(Guid.NewGuid(), nameof(DisputeStatusChanged), "not json", DisputeTestData.Now);

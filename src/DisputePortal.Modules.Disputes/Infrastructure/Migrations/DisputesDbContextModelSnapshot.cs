@@ -219,6 +219,9 @@ namespace DisputePortal.Modules.Disputes.Infrastructure.Migrations
                     b.HasKey("CustomerId", "Key")
                         .HasName("pk_idempotency_keys");
 
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_idempotency_keys_created_at");
+
                     b.ToTable("idempotency_keys", "disputes");
                 });
 

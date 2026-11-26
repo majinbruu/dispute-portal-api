@@ -244,6 +244,7 @@ tests/
 deploy/
   keycloak/                             demo realm, clients and users
   k8s/                                  Kubernetes manifests
+  monitoring/                           example Prometheus alert rules
 docs/
   adr/                                  architecture decision records
   api/openapi.json                      committed API contract, regenerated on every build
@@ -441,7 +442,9 @@ Settings come from `appsettings.json` and environment variables. In an environme
 | `Simulator:RejectReturnsForTransactionIds` | one demo ID | Collections whose dispute the simulated scheme declines |
 | `RateLimiting:RequestsPerMinute` | `300` | General limit per customer |
 | `RateLimiting:DisputeSubmissionsPerMinute` | `5` | Limit on raising disputes per customer |
-| `ApiDocs:Enabled` | `true` | Serve the OpenAPI document and Swagger UI |
+| `Workers:IdempotencyKeyRetentionHours` | `24` | How long an idempotency key is kept before the hourly clean-up deletes it |
+| `ApiDocs:Enabled` | `false` | Serve the OpenAPI document and Swagger UI. Docker Compose and the `Development` environment switch it on |
+| `AllowedHosts` | `localhost` | Host names the API answers to, separated by `;`. Requests for any other host get a 400 |
 
 Command-line switches: `--migrate-only` applies migrations and exits, and `--healthcheck` probes the running instance and sets the exit code, which the container health check uses.
 
@@ -451,9 +454,11 @@ Command-line switches: `--migrate-only` applies migrations and exits, and `--hea
 | --- | --- |
 | `GET /health/live` | The process is up |
 | `GET /health/ready` | The process can reach its database |
-| `GET /metrics` | Prometheus metrics: HTTP, runtime, and business counters such as `disputeportal_disputes_submitted`, `disputeportal_disputes_completed` and `disputeportal_outbox_dispatched` |
+| `GET /metrics` | Prometheus metrics: HTTP, runtime, and business counters such as `disputeportal_disputes_submitted`, `disputeportal_disputes_completed`, `disputeportal_outbox_dispatched` and `disputeportal_outbox_abandoned` |
 
 Health and metrics are served by the API only. The web container does not proxy them.
+
+An outbox message that fails five times is abandoned: it is logged at critical level and counted in `disputeportal_outbox_abandoned`. [`deploy/monitoring/alerts.yaml`](deploy/monitoring/alerts.yaml) has an example alert on that counter, with the query to find the message and how to replay it.
 
 Logs are JSON on standard output, and each line carries the trace ID that also appears in error responses. View them with:
 
