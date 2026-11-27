@@ -66,11 +66,11 @@ internal sealed class DebitOrderDirectory(IDebitOrderStore store, TimeProvider t
             debitOrder.EndToEndId,
             debitOrder.Amount,
             debitOrder.Currency,
-            debitOrder.ActionDate,
+            debitOrder.EffectiveDate,
             debitOrder.MandateType.ToString(),
             debitOrder.MandateReference,
-            debitOrder.CreditorName,
-            debitOrder.DebtorAccountMasked,
+            debitOrder.CounterpartyName,
+            debitOrder.AccountMasked,
             eligible ? null : ToErrorCode(eligibility),
             eligible ? null : EligibilityMessages.For(eligibility, debitOrder));
     }

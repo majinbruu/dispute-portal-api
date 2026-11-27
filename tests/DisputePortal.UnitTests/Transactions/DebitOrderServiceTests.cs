@@ -128,7 +128,7 @@ internal sealed class InMemoryDebitOrderStore : IDebitOrderStore
 
     public Task<PagedResult<DebitOrder>> ListAsync(Guid customerId, DebitOrderFilter filter, PageRequest page, CancellationToken cancellationToken)
     {
-        var items = _debitOrders.Where(d => d.CustomerId == customerId).OrderByDescending(d => d.ActionDate).ToList();
+        var items = _debitOrders.Where(d => d.CustomerId == customerId).OrderByDescending(d => d.EffectiveDate).ToList();
         return Task.FromResult(new PagedResult<DebitOrder>(items.Skip(page.Skip).Take(page.PageSize).ToList(), page.Page, page.PageSize, items.Count));
     }
 

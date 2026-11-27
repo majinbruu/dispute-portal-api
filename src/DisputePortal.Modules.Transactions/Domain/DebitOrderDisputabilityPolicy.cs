@@ -2,13 +2,11 @@ using DisputePortal.SharedKernel;
 
 namespace DisputePortal.Modules.Transactions.Domain;
 
-internal readonly record struct DisputabilityDecision(bool IsDisputable, DisputabilityReason Reason);
-
 /// <summary>
-/// Simplified, portal-side dispute rules. In a real bank the authoritative pacs.003 validation and
-/// dispute calculation live in downstream payment systems and the portal displays their result.
+/// Simplified, portal-side dispute rules for debit orders. In a real bank the authoritative pacs.003 validation
+/// and dispute calculation live in downstream payment systems and the portal displays their result.
 /// </summary>
-internal static class DisputabilityPolicy
+internal static class DebitOrderDisputabilityPolicy
 {
     /// <summary>
     /// PASA Debit Order Dispute Enhancements, effective 13 April 2026: 60 calendar days,
@@ -16,9 +14,15 @@ internal static class DisputabilityPolicy
     /// </summary>
     public const int DisputeWindowDays = 60;
 
-    /// <summary>Decides disputability under the mandate. Called once, when the collection request is recorded.</summary>
-    public static DisputabilityDecision Evaluate(Mandate mandate, Money amount, DateOnly actionDate)
+    /// <summary>Decides whether a collection can be disputed. Called once, when the collection is recorded.</summary>
+    public static DisputabilityDecision Evaluate(Mandate mandate, Money amount, DateOnly actionDate, bool accepted)
     {
+        // A rejected collection debited nothing, so there is nothing to dispute.
+        if (!accepted)
+        {
+            return new(false, DisputabilityReason.CollectionRejected);
+        }
+
         // A registered mandate was never confirmed by the customer with the bank, so its collections are disputable.
         if (mandate.Type == MandateType.Registered)
         {

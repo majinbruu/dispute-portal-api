@@ -3,12 +3,12 @@ using DisputePortal.SharedKernel;
 
 namespace DisputePortal.UnitTests.Transactions;
 
-public class DisputabilityPolicyTests
+public class DebitOrderDisputabilityPolicyTests
 {
     [Fact]
     public void A_registered_mandate_collection_is_disputable()
     {
-        var decision = DisputabilityPolicy.Evaluate(TestData.RegisteredMandate(), Money.Zar(599m), new DateOnly(2026, 11, 1));
+        var decision = DebitOrderDisputabilityPolicy.Evaluate(TestData.RegisteredMandate(), Money.Zar(599m), new DateOnly(2026, 11, 1), accepted: true);
 
         decision.IsDisputable.ShouldBeTrue();
         decision.Reason.ShouldBe(DisputabilityReason.RegisteredMandate);
@@ -21,7 +21,7 @@ public class DisputabilityPolicyTests
     {
         var mandate = TestData.DebiCheckMandate(maximum: 673.50m, collectionDay: 15);
 
-        var decision = DisputabilityPolicy.Evaluate(mandate, Money.Zar(amount), new DateOnly(2026, 11, 15));
+        var decision = DebitOrderDisputabilityPolicy.Evaluate(mandate, Money.Zar(amount), new DateOnly(2026, 11, 15), accepted: true);
 
         decision.IsDisputable.ShouldBeFalse();
         decision.Reason.ShouldBe(DisputabilityReason.WithinMandateTerms);
@@ -32,7 +32,7 @@ public class DisputabilityPolicyTests
     {
         var mandate = TestData.DebiCheckMandate(maximum: 673.50m, collectionDay: 15);
 
-        var decision = DisputabilityPolicy.Evaluate(mandate, Money.Zar(673.51m), new DateOnly(2026, 11, 15));
+        var decision = DebitOrderDisputabilityPolicy.Evaluate(mandate, Money.Zar(673.51m), new DateOnly(2026, 11, 15), accepted: true);
 
         decision.IsDisputable.ShouldBeTrue();
         decision.Reason.ShouldBe(DisputabilityReason.AmountAboveMandateMaximum);
@@ -43,7 +43,7 @@ public class DisputabilityPolicyTests
     {
         var mandate = TestData.DebiCheckMandate(collectionDay: 15, dateAdjustmentAllowed: false);
 
-        var decision = DisputabilityPolicy.Evaluate(mandate, Money.Zar(449m), new DateOnly(2026, 11, 18));
+        var decision = DebitOrderDisputabilityPolicy.Evaluate(mandate, Money.Zar(449m), new DateOnly(2026, 11, 18), accepted: true);
 
         decision.IsDisputable.ShouldBeTrue();
         decision.Reason.ShouldBe(DisputabilityReason.DateOutsideMandateTerms);
@@ -54,16 +54,25 @@ public class DisputabilityPolicyTests
     {
         var mandate = TestData.DebiCheckMandate(collectionDay: 15, dateAdjustmentAllowed: true);
 
-        var decision = DisputabilityPolicy.Evaluate(mandate, Money.Zar(449m), new DateOnly(2026, 11, 18));
+        var decision = DebitOrderDisputabilityPolicy.Evaluate(mandate, Money.Zar(449m), new DateOnly(2026, 11, 18), accepted: true);
 
         decision.IsDisputable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void A_rejected_collection_is_not_disputable_whatever_the_mandate_says()
+    {
+        var decision = DebitOrderDisputabilityPolicy.Evaluate(TestData.RegisteredMandate(), Money.Zar(599m), new DateOnly(2026, 11, 1), accepted: false);
+
+        decision.IsDisputable.ShouldBeFalse();
+        decision.Reason.ShouldBe(DisputabilityReason.CollectionRejected);
     }
 
     [Fact]
     public void The_last_dispute_date_is_sixty_days_after_the_action_date()
     {
         // Day 1 is the day after the debit, so day 60 is the action date plus 60.
-        DisputabilityPolicy.LastDisputeDate(new DateOnly(2026, 9, 23)).ShouldBe(new DateOnly(2026, 11, 22));
+        DebitOrderDisputabilityPolicy.LastDisputeDate(new DateOnly(2026, 9, 23)).ShouldBe(new DateOnly(2026, 11, 22));
     }
 }
 
@@ -74,7 +83,7 @@ public class DebitOrderEligibilityTests
     {
         var debitOrder = TestData.DebitOrder(TestData.DebiCheckMandate(maximum: 673.50m), new DateOnly(2026, 11, 15), amount: 899m);
 
-        debitOrder.IsDisputableUnderMandate.ShouldBeTrue();
+        debitOrder.IsDisputable.ShouldBeTrue();
         debitOrder.DisputabilityReason.ShouldBe(DisputabilityReason.AmountAboveMandateMaximum);
         debitOrder.LastDisputeDate.ShouldBe(new DateOnly(2027, 1, 14));
     }
@@ -140,9 +149,9 @@ public class DebitOrderEligibilityTests
     {
         var debitOrder = TestData.DebitOrder(TestData.RegisteredMandate(), TestData.Today);
 
-        debitOrder.DebtorAccountMasked.ShouldBe("******7890");
-        AccountNumber.Mask("62 1234 5678").ShouldBe("******5678");
-        Should.Throw<ArgumentException>(() => AccountNumber.Mask("123"));
+        debitOrder.AccountMasked.ShouldBe("******7890");
+        NumberMask.KeepLastFour("62 1234 5678").ShouldBe("******5678");
+        Should.Throw<ArgumentException>(() => NumberMask.KeepLastFour("123"));
     }
 }
 

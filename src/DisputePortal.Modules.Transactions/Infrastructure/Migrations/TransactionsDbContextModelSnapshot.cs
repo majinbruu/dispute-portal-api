@@ -23,136 +23,6 @@ namespace DisputePortal.Modules.Transactions.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("DisputePortal.Modules.Transactions.Domain.DebitOrder", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateOnly>("ActionDate")
-                        .HasColumnType("date")
-                        .HasColumnName("action_date");
-
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)")
-                        .HasColumnName("amount");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("CreditorName")
-                        .IsRequired()
-                        .HasMaxLength(140)
-                        .HasColumnType("character varying(140)")
-                        .HasColumnName("creditor_name");
-
-                    b.Property<string>("CreditorShortName")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("creditor_short_name");
-
-                    b.Property<string>("Currency")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character(3)")
-                        .HasColumnName("currency")
-                        .IsFixedLength();
-
-                    b.Property<Guid>("CustomerId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("customer_id");
-
-                    b.Property<string>("DebtorAccountMasked")
-                        .IsRequired()
-                        .HasMaxLength(34)
-                        .HasColumnType("character varying(34)")
-                        .HasColumnName("debtor_account_masked");
-
-                    b.Property<string>("DisputabilityReason")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)")
-                        .HasColumnName("disputability_reason");
-
-                    b.Property<string>("EndToEndId")
-                        .IsRequired()
-                        .HasMaxLength(35)
-                        .HasColumnType("character varying(35)")
-                        .HasColumnName("end_to_end_id");
-
-                    b.Property<bool>("IsDisputableUnderMandate")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_disputable_under_mandate");
-
-                    b.Property<DateOnly>("LastDisputeDate")
-                        .HasColumnType("date")
-                        .HasColumnName("last_dispute_date");
-
-                    b.Property<Guid>("MandateId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("mandate_id");
-
-                    b.Property<string>("MandateReference")
-                        .IsRequired()
-                        .HasMaxLength(35)
-                        .HasColumnType("character varying(35)")
-                        .HasColumnName("mandate_reference");
-
-                    b.Property<string>("MandateType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("mandate_type");
-
-                    b.Property<string>("SequenceType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("sequence_type");
-
-                    b.Property<string>("StatementText")
-                        .IsRequired()
-                        .HasMaxLength(140)
-                        .HasColumnType("character varying(140)")
-                        .HasColumnName("statement_text");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("status");
-
-                    b.Property<string>("StatusReasonCode")
-                        .HasMaxLength(4)
-                        .HasColumnType("character varying(4)")
-                        .HasColumnName("status_reason_code");
-
-                    b.Property<string>("TransactionId")
-                        .IsRequired()
-                        .HasMaxLength(35)
-                        .HasColumnType("character varying(35)")
-                        .HasColumnName("transaction_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_debit_orders");
-
-                    b.HasIndex("MandateId")
-                        .HasDatabaseName("ix_debit_orders_mandate_id");
-
-                    b.HasIndex("TransactionId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_debit_orders_transaction_id");
-
-                    b.HasIndex("CustomerId", "ActionDate")
-                        .IsDescending(false, true)
-                        .HasDatabaseName("ix_debit_orders_customer_id_action_date");
-
-                    b.ToTable("debit_orders", "transactions");
-                });
-
             modelBuilder.Entity("DisputePortal.Modules.Transactions.Domain.Mandate", b =>
                 {
                     b.Property<Guid>("Id")
@@ -264,8 +134,159 @@ namespace DisputePortal.Modules.Transactions.Infrastructure.Migrations
                     b.ToTable("mandates", "transactions");
                 });
 
+            modelBuilder.Entity("DisputePortal.Modules.Transactions.Domain.Transaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AccountMasked")
+                        .IsRequired()
+                        .HasMaxLength(34)
+                        .HasColumnType("character varying(34)")
+                        .HasColumnName("account_masked");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("CounterpartyName")
+                        .IsRequired()
+                        .HasMaxLength(140)
+                        .HasColumnType("character varying(140)")
+                        .HasColumnName("counterparty_name");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character(3)")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<string>("DisputabilityReason")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("disputability_reason");
+
+                    b.Property<DateOnly>("EffectiveDate")
+                        .HasColumnType("date")
+                        .HasColumnName("effective_date");
+
+                    b.Property<bool>("IsDisputable")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_disputable");
+
+                    b.Property<DateOnly>("LastDisputeDate")
+                        .HasColumnType("date")
+                        .HasColumnName("last_dispute_date");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId", "Type", "EffectiveDate")
+                        .IsDescending(false, false, true)
+                        .HasDatabaseName("ix_transactions_customer_id_type_effective_date");
+
+                    b.ToTable("transactions", "transactions");
+
+                    b.UseTptMappingStrategy();
+                });
+
             modelBuilder.Entity("DisputePortal.Modules.Transactions.Domain.DebitOrder", b =>
                 {
+                    b.HasBaseType("DisputePortal.Modules.Transactions.Domain.Transaction");
+
+                    b.Property<string>("CreditorShortName")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("creditor_short_name");
+
+                    b.Property<string>("EndToEndId")
+                        .IsRequired()
+                        .HasMaxLength(35)
+                        .HasColumnType("character varying(35)")
+                        .HasColumnName("end_to_end_id");
+
+                    b.Property<Guid>("MandateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("mandate_id");
+
+                    b.Property<string>("MandateReference")
+                        .IsRequired()
+                        .HasMaxLength(35)
+                        .HasColumnType("character varying(35)")
+                        .HasColumnName("mandate_reference");
+
+                    b.Property<string>("MandateType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("mandate_type");
+
+                    b.Property<string>("SequenceType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("sequence_type");
+
+                    b.Property<string>("StatementText")
+                        .IsRequired()
+                        .HasMaxLength(140)
+                        .HasColumnType("character varying(140)")
+                        .HasColumnName("statement_text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("StatusReasonCode")
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)")
+                        .HasColumnName("status_reason_code");
+
+                    b.Property<string>("TransactionId")
+                        .IsRequired()
+                        .HasMaxLength(35)
+                        .HasColumnType("character varying(35)")
+                        .HasColumnName("transaction_id");
+
+                    b.HasIndex("MandateId")
+                        .HasDatabaseName("ix_debit_orders_mandate_id");
+
+                    b.HasIndex("TransactionId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_debit_orders_transaction_id");
+
+                    b.ToTable("debit_orders", "transactions");
+                });
+
+            modelBuilder.Entity("DisputePortal.Modules.Transactions.Domain.DebitOrder", b =>
+                {
+                    b.HasOne("DisputePortal.Modules.Transactions.Domain.Transaction", null)
+                        .WithOne()
+                        .HasForeignKey("DisputePortal.Modules.Transactions.Domain.DebitOrder", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_debit_orders_transactions_id");
+
                     b.HasOne("DisputePortal.Modules.Transactions.Domain.Mandate", null)
                         .WithMany()
                         .HasForeignKey("MandateId")

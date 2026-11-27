@@ -1,5 +1,10 @@
 namespace DisputePortal.Modules.Transactions.Domain;
 
+internal enum TransactionType
+{
+    DebitOrder,
+}
+
 internal enum MandateType
 {
     /// <summary>Authenticated Collections: the customer approved the mandate with their bank.</summary>
@@ -45,16 +50,17 @@ internal enum DebitOrderStatus
     Rejected,
 }
 
-/// <summary>Why a debit order is, or is not, disputable under the mandate rules. Decided once, when the collection is recorded.</summary>
+/// <summary>Why a transaction is, or is not, disputable under the rules for its type. Decided once, when it is recorded.</summary>
 internal enum DisputabilityReason
 {
     RegisteredMandate,
     AmountAboveMandateMaximum,
     DateOutsideMandateTerms,
     WithinMandateTerms,
+    CollectionRejected,
 }
 
-/// <summary>Whether the customer can dispute a debit order right now.</summary>
+/// <summary>Whether the customer can dispute a transaction right now.</summary>
 internal enum DisputeEligibility
 {
     Eligible,

@@ -23,21 +23,21 @@ internal sealed class EfDebitOrderStore(TransactionsDbContext db) : IDebitOrderS
 
         if (filter.From is { } from)
         {
-            query = query.Where(d => d.ActionDate >= from);
+            query = query.Where(d => d.EffectiveDate >= from);
         }
 
         if (filter.To is { } to)
         {
-            query = query.Where(d => d.ActionDate <= to);
+            query = query.Where(d => d.EffectiveDate <= to);
         }
 
         // The ID is always the last sort key so paging is stable when dates or amounts repeat.
         query = filter.Sort switch
         {
-            DebitOrderSort.ActionDateAscending => query.OrderBy(d => d.ActionDate).ThenBy(d => d.Id),
+            DebitOrderSort.ActionDateAscending => query.OrderBy(d => d.EffectiveDate).ThenBy(d => d.Id),
             DebitOrderSort.AmountDescending => query.OrderByDescending(d => d.Amount).ThenBy(d => d.Id),
             DebitOrderSort.AmountAscending => query.OrderBy(d => d.Amount).ThenBy(d => d.Id),
-            _ => query.OrderByDescending(d => d.ActionDate).ThenBy(d => d.Id),
+            _ => query.OrderByDescending(d => d.EffectiveDate).ThenBy(d => d.Id),
         };
 
         var total = await query.CountAsync(cancellationToken);

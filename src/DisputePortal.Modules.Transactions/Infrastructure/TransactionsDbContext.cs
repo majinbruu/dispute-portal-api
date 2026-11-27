@@ -9,6 +9,8 @@ internal sealed class TransactionsDbContext(DbContextOptions<TransactionsDbConte
 
     public DbSet<Mandate> Mandates => Set<Mandate>();
 
+    public DbSet<Transaction> Transactions => Set<Transaction>();
+
     public DbSet<DebitOrder> DebitOrders => Set<DebitOrder>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -35,28 +37,40 @@ internal sealed class TransactionsDbContext(DbContextOptions<TransactionsDbConte
             mandate.HasIndex(m => new { m.CustomerId, m.Type });
         });
 
+        // Table per type: the shared columns live in one table and each type keeps its details in its own,
+        // joined on the transaction ID.
+        modelBuilder.Entity<Transaction>(transaction =>
+        {
+            transaction.UseTptMappingStrategy();
+            transaction.ToTable("transactions");
+
+            // The snake_case naming convention does not rename primary keys in a table-per-type hierarchy,
+            // so these tables keep EF Core's default key names (PK_transactions, PK_debit_orders).
+            transaction.HasKey(t => t.Id);
+            transaction.Property(t => t.Id).ValueGeneratedNever();
+            transaction.Property(t => t.Type).HasConversion<string>().HasMaxLength(20);
+            transaction.Property(t => t.AccountMasked).HasMaxLength(34);
+            transaction.Property(t => t.CounterpartyName).HasMaxLength(140);
+            transaction.Property(t => t.Amount).HasPrecision(18, 2);
+            transaction.Property(t => t.Currency).HasMaxLength(3).IsFixedLength();
+            transaction.Property(t => t.DisputabilityReason).HasConversion<string>().HasMaxLength(40);
+            transaction.HasIndex(t => new { t.CustomerId, t.Type, t.EffectiveDate }).IsDescending(false, false, true);
+        });
+
         modelBuilder.Entity<DebitOrder>(debitOrder =>
         {
             debitOrder.ToTable("debit_orders");
-            debitOrder.HasKey(d => d.Id);
-            debitOrder.Property(d => d.Id).ValueGeneratedNever();
             debitOrder.Property(d => d.MandateType).HasConversion<string>().HasMaxLength(20);
             debitOrder.Property(d => d.MandateReference).HasMaxLength(35);
             debitOrder.Property(d => d.TransactionId).HasMaxLength(35);
             debitOrder.Property(d => d.EndToEndId).HasMaxLength(35);
-            debitOrder.Property(d => d.Amount).HasPrecision(18, 2);
-            debitOrder.Property(d => d.Currency).HasMaxLength(3).IsFixedLength();
             debitOrder.Property(d => d.SequenceType).HasConversion<string>().HasMaxLength(20);
-            debitOrder.Property(d => d.CreditorName).HasMaxLength(140);
             debitOrder.Property(d => d.CreditorShortName).HasMaxLength(20);
             debitOrder.Property(d => d.StatementText).HasMaxLength(140);
-            debitOrder.Property(d => d.DebtorAccountMasked).HasMaxLength(34);
             debitOrder.Property(d => d.Status).HasConversion<string>().HasMaxLength(20);
             debitOrder.Property(d => d.StatusReasonCode).HasMaxLength(4);
-            debitOrder.Property(d => d.DisputabilityReason).HasConversion<string>().HasMaxLength(40);
             debitOrder.HasOne<Mandate>().WithMany().HasForeignKey(d => d.MandateId).OnDelete(DeleteBehavior.Restrict);
             debitOrder.HasIndex(d => d.TransactionId).IsUnique();
-            debitOrder.HasIndex(d => new { d.CustomerId, d.ActionDate }).IsDescending(false, true);
         });
     }
 }
