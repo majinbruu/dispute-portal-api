@@ -676,10 +676,10 @@ Settings come from `appsettings.json` and environment variables. In an environme
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | `ConnectionStrings:Postgres` | none | PostgreSQL connection string |
-| `Auth:Authority` | `http://localhost:8080/realms/acme-bank` | Issuer that tokens must carry. This is the public URL the browser uses |
+| `Auth:Authority` | none | Required. Issuer that tokens must carry. This is the public URL the browser uses. The `Development` environment sets `http://localhost:8080/realms/acme-bank` |
 | `Auth:MetadataAddress` | empty | Where the API fetches signing keys, when that differs from the public URL |
-| `Auth:Audience` | `dispute-portal-api` | Audience that tokens must carry |
-| `Auth:RequireHttpsMetadata` | `true` | Set to `false` only for local HTTP |
+| `Auth:Audience` | `dispute-portal-api` | Required. Audience that tokens must carry |
+| `Auth:RequireHttpsMetadata` | `true` | Requires `Auth:Authority` and `Auth:MetadataAddress` to be https. Set to `false` only for local HTTP |
 | `Database:MigrateOnStartup` | `false` | Apply migrations when the process starts |
 | `Seed:Enabled` | `false` | Load demo data that is not there yet |
 | `Workers:Enabled` | `true` | Run the background workers in this process |
@@ -695,7 +695,9 @@ Settings come from `appsettings.json` and environment variables. In an environme
 | `ApiDocs:Enabled` | `false` | Serve the OpenAPI document and Swagger UI. The demo Compose stack and the `Development` environment switch it on |
 | `AllowedHosts` | `localhost` | Host names the API answers to, separated by `;`. Requests for any other host get a 400 |
 
-Command-line switches: `--migrate-only` applies migrations and exits, and `--healthcheck` probes the running instance and sets the exit code, which the container health check uses.
+The `Auth` settings are checked when the process starts. If one is missing or wrong, for example an `http` authority while `Auth:RequireHttpsMetadata` is `true`, the process writes a message that names the setting to standard error and exits with code 1.
+
+Command-line switches: `--migrate-only` applies migrations and exits, after the same check of the `Auth` settings, and `--healthcheck` probes the running instance and sets the exit code, which the container health check uses.
 
 Docker Compose reads these from `.env` (demo stack) or from the file given with `--env-file` (production overlay):
 
@@ -761,6 +763,7 @@ The manifests are validated against the Kubernetes schemas. They have not been a
 | The browser warns about the certificate on `portal.localhost` or `auth.localhost` | Expected with the local add-on. The certificates are signed by the proxy's own local authority |
 | The web app shows the sign-in screen again after a page reload | Expected. Tokens are kept in memory only. One click signs back in through the Keycloak session |
 | Signing in as the agent shows the customer again, or the other way round | One browser holds one Keycloak session. Sign out first, or use a private window for the second user |
+| The API exits at once with "The application cannot start because its configuration is invalid" | An `Auth` setting is missing or wrong, and the message names it. Outside the `Development` environment `Auth:Authority` has no default, and an `http` URL also needs `Auth:RequireHttpsMetadata` set to `false` |
 | Sign-in works but every API call returns 401 | The token issuer does not match `Auth:Authority`. Use `http://localhost:3000` and `http://localhost:8080` exactly, not `127.0.0.1` |
 | An API call returns 403 | The token has the wrong role for that endpoint: `/api/v1/agent` needs `agent`, everything else under `/api/v1` needs `customer` |
 | A new dispute stays on Submitted | Expected. It waits for an agent. Sign in as `zanele` and approve or reject it |
