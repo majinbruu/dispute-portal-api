@@ -15,13 +15,29 @@
 	reverse_proxy web:8080
 }
 
-# Keycloak. Only what sign-in to the acme-bank realm needs is public. The master realm, the admin
-# console, the admin REST API, health and metrics are not reachable from outside.
+# Keycloak. Only what a browser needs to sign in to the acme-bank realm, and what the web app and the
+# API call, is public. Everything else Keycloak serves answers 404 here: the account console, client
+# registration, token introspection and the other OpenID Connect endpoints, the master realm, the admin
+# console, the admin REST API, health and metrics.
 {$AUTH_HOSTNAME} {
 	import security
 
-	@signin path /realms/acme-bank/* /resources/*
-	handle @signin {
+	# OpenID Connect: discovery, signing keys, the authorisation endpoint, tokens and sign-out.
+	@oidc path 		/realms/acme-bank/.well-known/openid-configuration 		/realms/acme-bank/protocol/openid-connect/certs 		/realms/acme-bank/protocol/openid-connect/auth 		/realms/acme-bank/protocol/openid-connect/token 		/realms/acme-bank/protocol/openid-connect/logout 		/realms/acme-bank/protocol/openid-connect/logout/logout-confirm
+
+	# What the sign-in pages post to: the sign-in form, a required action such as a new password, and "restart sign-in".
+	@forms path 		/realms/acme-bank/login-actions/authenticate 		/realms/acme-bank/login-actions/required-action 		/realms/acme-bank/login-actions/restart
+
+	# The style sheets, scripts and images of the sign-in pages. The admin and account consoles' files are left out.
+	@assets path_regexp ^/resources/[^/]+/(login|common)/
+
+	handle @oidc {
+		reverse_proxy keycloak:8080
+	}
+	handle @forms {
+		reverse_proxy keycloak:8080
+	}
+	handle @assets {
 		reverse_proxy keycloak:8080
 	}
 	handle {
