@@ -8,6 +8,7 @@ namespace DisputePortal.UnitTests.Disputes;
 internal static class DisputeTestData
 {
     public const string Registered = "Registered";
+    public const string Eft = "Eft";
 
     public static readonly Guid Customer = Guid.Parse("00000000-0000-4000-8000-0000000000aa");
     public static readonly DateTimeOffset Now = new(2026, 11, 22, 8, 0, 0, TimeSpan.Zero);
@@ -15,7 +16,7 @@ internal static class DisputeTestData
     public static DisputedTransaction DebitOrder(string mandateType = Registered, string transactionId = "ACME20261101000001") => new(
         Guid.NewGuid(), DisputedTransactionType.DebitOrder, transactionId, Money.Zar(599m), new DateOnly(2026, 11, 1),
         "Vodacom", "******7890",
-        DebitOrder: new DisputedDebitOrder("VOD-1-20261101", mandateType, "MRN000000001"));
+        DebitOrder: new DisputedDebitOrder("VOD-1-20261101", mandateType, mandateType == Eft ? null : "MRN000000001"));
 
     public static DisputedTransaction Card(
         string scheme = TransactionValues.Visa,
@@ -314,6 +315,24 @@ public class ReturnMessageFactoryTests
         transaction.GetProperty("RtrRsnInf").GetProperty("Rsn").GetProperty("Cd").GetString().ShouldBe("AM09");
         transaction.GetProperty("OrgnlTxRef").GetProperty("MndtRltdInf").GetProperty("MndtId").GetString().ShouldBe("MRN000000001");
         transaction.GetProperty("OrgnlTxRef").GetProperty("Cdtr").GetProperty("Nm").GetString().ShouldBe("Vodacom");
+    }
+}
+
+public class EftReturnMessageTests
+{
+    [Fact]
+    public void An_eft_debit_order_dispute_has_no_mandate_and_its_pacs004_leaves_the_mandate_out()
+    {
+        var dispute = DisputeTestData.Submitted("not_authorised", DisputeTestData.Eft);
+
+        using var payload = JsonDocument.Parse(ReturnMessageFactory.Create(dispute, DisputeTestData.Now));
+        var original = payload.RootElement.GetProperty("TxInf").GetProperty("OrgnlTxRef");
+
+        dispute.ReasonCode.ShouldBe("MD01");
+        dispute.MandateType.ShouldBe("Eft");
+        dispute.MandateReference.ShouldBeNull();
+        original.TryGetProperty("MndtRltdInf", out _).ShouldBeFalse();
+        original.GetProperty("Cdtr").GetProperty("Nm").GetString().ShouldBe("Vodacom");
     }
 }
 

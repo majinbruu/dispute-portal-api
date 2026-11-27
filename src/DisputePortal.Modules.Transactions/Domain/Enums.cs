@@ -15,6 +15,19 @@ internal enum MandateType
     Registered,
 }
 
+/// <summary>The three kinds of debit order. They are never shown in one list.</summary>
+internal enum DebitOrderType
+{
+    /// <summary>Collected under a DebiCheck mandate the customer authenticated.</summary>
+    DebiCheck,
+
+    /// <summary>Collected under a Registered Mandate.</summary>
+    Registered,
+
+    /// <summary>EFT debit order: not authenticated by the customer, and the bank holds no mandate record for it.</summary>
+    Eft,
+}
+
 internal enum MandateStatus
 {
     Active,
@@ -55,6 +68,7 @@ internal enum DebitOrderStatus
 internal enum DisputabilityReason
 {
     RegisteredMandate,
+    EftDebitOrder,
     AmountAboveMandateMaximum,
     DateOutsideMandateTerms,
     WithinMandateTerms,

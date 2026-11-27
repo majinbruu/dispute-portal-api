@@ -111,6 +111,18 @@ public class TransactionDirectoryTests
     }
 
     [Fact]
+    public async Task Describes_an_eft_debit_order_without_a_mandate_reference()
+    {
+        var debitOrder = _store.Add(TestData.EftDebitOrder(TestData.Today.AddDays(-5)));
+
+        var found = (await Directory.FindAsync(debitOrder.Id, TestData.Customer, CancellationToken.None))!;
+
+        found.IsEligible.ShouldBeTrue();
+        found.CounterpartyName.ShouldBe("City of Johannesburg");
+        found.DebitOrder.ShouldBe(new DebitOrderForDispute("E2E-1", "Eft", MandateReference: null));
+    }
+
+    [Fact]
     public async Task Describes_a_card_purchase_by_its_acquirer_reference_and_how_the_card_was_used()
     {
         var details = TestData.CardDetails(postingDate: TestData.Today.AddDays(-3));

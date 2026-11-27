@@ -303,6 +303,12 @@ namespace DisputePortal.Modules.Transactions.Infrastructure.Migrations
                 {
                     b.HasBaseType("DisputePortal.Modules.Transactions.Domain.Transaction");
 
+                    b.Property<string>("ContractReference")
+                        .IsRequired()
+                        .HasMaxLength(35)
+                        .HasColumnType("character varying(35)")
+                        .HasColumnName("contract_reference");
+
                     b.Property<string>("CreditorShortName")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -315,12 +321,11 @@ namespace DisputePortal.Modules.Transactions.Infrastructure.Migrations
                         .HasColumnType("character varying(35)")
                         .HasColumnName("end_to_end_id");
 
-                    b.Property<Guid>("MandateId")
+                    b.Property<Guid?>("MandateId")
                         .HasColumnType("uuid")
                         .HasColumnName("mandate_id");
 
                     b.Property<string>("MandateReference")
-                        .IsRequired()
                         .HasMaxLength(35)
                         .HasColumnType("character varying(35)")
                         .HasColumnName("mandate_reference");
@@ -393,7 +398,6 @@ namespace DisputePortal.Modules.Transactions.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("MandateId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
                         .HasConstraintName("fk_debit_orders_mandates_mandate_id");
                 });
 #pragma warning restore 612, 618

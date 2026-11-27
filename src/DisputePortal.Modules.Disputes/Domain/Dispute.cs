@@ -40,7 +40,8 @@ internal sealed record DisputedTransaction(
     DisputedDebitOrder? DebitOrder = null,
     DisputedCard? Card = null);
 
-internal sealed record DisputedDebitOrder(string EndToEndId, string MandateType, string MandateReference);
+/// <param name="MandateReference">Null for an EFT debit order, which has no mandate.</param>
+internal sealed record DisputedDebitOrder(string EndToEndId, string MandateType, string? MandateReference);
 
 internal sealed record DisputedCard(string Scheme, string EntryMode, string Verification, DateOnly? PostingDate);
 
@@ -117,7 +118,7 @@ internal sealed class Dispute
     /// <summary>Debit orders only.</summary>
     public string? MandateType { get; private set; }
 
-    /// <summary>Debit orders only.</summary>
+    /// <summary>DebiCheck and Registered Mandate debit orders only. An EFT debit order has no mandate.</summary>
     public string? MandateReference { get; private set; }
 
     /// <summary>Card transactions only.</summary>

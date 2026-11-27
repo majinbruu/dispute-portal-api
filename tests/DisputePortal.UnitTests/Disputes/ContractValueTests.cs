@@ -14,7 +14,7 @@ public class ContractValueTests
     [Fact]
     public void The_dispute_rules_use_the_names_the_transactions_module_sends()
     {
-        TransactionValues.DebiCheck.ShouldBe(nameof(MandateType.DebiCheck));
+        TransactionValues.DebiCheck.ShouldBe(nameof(DebitOrderType.DebiCheck));
         TransactionValues.Visa.ShouldBe(nameof(CardScheme.Visa));
         TransactionValues.Mastercard.ShouldBe(nameof(CardScheme.Mastercard));
         TransactionValues.ECommerce.ShouldBe(nameof(CardEntryMode.ECommerce));

@@ -14,7 +14,7 @@ internal static class DebitOrderDisputabilityPolicy
     /// </summary>
     public const int DisputeWindowDays = 60;
 
-    /// <summary>Decides whether a collection can be disputed. Called once, when the collection is recorded.</summary>
+    /// <summary>Decides whether a collection under a mandate can be disputed. Called once, when the collection is recorded.</summary>
     public static DisputabilityDecision Evaluate(Mandate mandate, Money amount, DateOnly actionDate, bool accepted)
     {
         // A rejected collection debited nothing, so there is nothing to dispute.
@@ -42,6 +42,14 @@ internal static class DebitOrderDisputabilityPolicy
 
         return new(false, DisputabilityReason.WithinMandateTerms);
     }
+
+    /// <summary>
+    /// Decides whether an EFT collection can be disputed. The customer never confirmed anything with the bank,
+    /// so a successful collection is always disputable, like a Registered Mandate collection.
+    /// </summary>
+    public static DisputabilityDecision EvaluateWithoutMandate(bool accepted) => accepted
+        ? new(true, DisputabilityReason.EftDebitOrder)
+        : new(false, DisputabilityReason.CollectionRejected);
 
     /// <summary>Day 1 is the day after the debit, so day 60 is the action date plus 60 days.</summary>
     public static DateOnly LastDisputeDate(DateOnly actionDate) => actionDate.AddDays(DisputeWindowDays);

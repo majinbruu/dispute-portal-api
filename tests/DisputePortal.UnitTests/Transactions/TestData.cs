@@ -30,6 +30,11 @@ internal static class TestData
             AuthenticationType: "Real-time (banking app)", AuthenticatedAt: Now.AddYears(-1)),
         Now);
 
+    public static DebitOrder EftDebitOrder(DateOnly actionDate, CollectionResponse? response = null, Guid? customerId = null) =>
+        Modules.Transactions.Domain.DebitOrder.RecordEft(
+            Guid.NewGuid(), customerId ?? Customer, new CollectingCreditor("City of Johannesburg", "COJ RATES", "COJ-550218734"),
+            Request(actionDate, amount: 1486.20m), response ?? CollectionResponse.AcceptedResponse, Now);
+
     public static CardTransactionDetails CardDetails(DateOnly? postingDate = null, decimal amount = 1899m) => new(
         "4000123456784821", CardScheme.Visa, CardTransactionKind.Purchase, Money.Zar(amount), "Takealot", "Cape Town", "ZA", "5311",
         (postingDate ?? Today).AddDays(-1), postingDate ?? Today, "123456", "74027000000000000000001",

@@ -22,9 +22,10 @@ internal sealed record DebitOrderDto(
     string? StatusReasonCode,
     string? StatusReason,
     string DebtorAccountMasked,
-    Guid MandateId,
-    MandateType MandateType,
-    string MandateReference,
+    Guid? MandateId,
+    DebitOrderType MandateType,
+    string? MandateReference,
+    string ContractReference,
     DisputeEligibilityDto Eligibility,
     DisputeLinkDto? Dispute);
 
@@ -54,7 +55,7 @@ internal sealed class DebitOrderListQuery
     public DebitOrderStatus? Status { get; init; }
 
     [FromQuery(Name = "mandateType")]
-    public MandateType? MandateType { get; init; }
+    public DebitOrderType? MandateType { get; init; }
 
     /// <summary>Earliest action date, inclusive.</summary>
     [FromQuery(Name = "from")]
@@ -98,7 +99,7 @@ internal enum DebitOrderSort
 
 internal sealed record DebitOrderFilter(
     DebitOrderStatus? Status,
-    MandateType? MandateType,
+    DebitOrderType? MandateType,
     DateOnly? From,
     DateOnly? To,
     DebitOrderSort Sort);

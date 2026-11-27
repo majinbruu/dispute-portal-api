@@ -32,6 +32,11 @@ internal sealed class TransactionsSeeder(TransactionsDbContext db, TimeProvider 
             SeedSipho(now, today);
         }
 
+        if (!await db.DebitOrders.AnyAsync(d => d.MandateType == DebitOrderType.Eft, cancellationToken))
+        {
+            SeedThandiEft(now, today);
+        }
+
         if (!await db.CardTransactions.AnyAsync(cancellationToken))
         {
             SeedThandiCard(now, today);
@@ -98,6 +103,37 @@ internal sealed class TransactionsSeeder(TransactionsDbContext db, TimeProvider 
         var discovery = AddMandate(DebiCheck(customer, "Discovery Health", "DISCOVERY", "DH-71002256", 2140.00m, 3210.00m, anchor.Day, dateAdjustmentAllowed: false, now), now);
         Collect(discovery, anchor, 2140.00m, SiphoAccount, now);
         Collect(discovery, anchor.AddMonths(-1), 2140.00m, SiphoAccount, now);
+    }
+
+    /// <summary>EFT debit orders have no mandate, so the collection itself names the creditor and the contract.</summary>
+    private void SeedThandiEft(DateTimeOffset now, DateOnly today)
+    {
+        var rates = new CollectingCreditor("City of Johannesburg", "COJ RATES", "COJ-550218734");
+        CollectEft(rates, today.AddDays(-6), 1486.20m, now);
+        CollectEft(rates, today.AddDays(-37), 1452.75m, now);
+        CollectEft(rates, today.AddDays(-67), 1452.75m, now);  // window closed
+
+        var insurance = new CollectingCreditor("King Price Insurance", "KING PRICE", "KP-88120031");
+        CollectEft(insurance, today.AddDays(-2), 912.00m, now, CollectionResponse.Rejected("AM04"));
+        CollectEft(insurance, today.AddDays(-32), 912.00m, now);
+    }
+
+    private void CollectEft(CollectingCreditor creditor, DateOnly actionDate, decimal amount, DateTimeOffset now, CollectionResponse? response = null)
+    {
+        _sequence++;
+        var datePart = actionDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+
+        // The EFT prefix keeps these IDs apart from the mandate collections, which may have been seeded on an earlier run.
+        var request = new CollectionRequest(
+            $"ACMEEFT{datePart}{_sequence:D6}",
+            $"{creditor.ContractReference}-{datePart}",
+            Money.Zar(amount),
+            actionDate,
+            SequenceType.Recurring,
+            $"{creditor.ShortName} {creditor.ContractReference}",
+            ThandiAccount);
+
+        db.DebitOrders.Add(DebitOrder.RecordEft(Guid.NewGuid(), DemoData.Thandi, creditor, request, response ?? CollectionResponse.AcceptedResponse, now));
     }
 
     private void SeedThandiCard(DateTimeOffset now, DateOnly today)

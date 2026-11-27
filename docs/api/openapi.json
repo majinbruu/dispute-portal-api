@@ -597,7 +597,7 @@
             "name": "mandateType",
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/MandateType"
+              "$ref": "#/components/schemas/DebitOrderType"
             }
           },
           {
@@ -931,6 +931,7 @@
           "mandateId",
           "mandateType",
           "mandateReference",
+          "contractReference",
           "eligibility",
           "dispute"
         ],
@@ -992,13 +993,22 @@
             "type": "string"
           },
           "mandateId": {
-            "type": "string",
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "uuid"
           },
           "mandateType": {
-            "$ref": "#/components/schemas/MandateType"
+            "$ref": "#/components/schemas/DebitOrderType"
           },
           "mandateReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "contractReference": {
             "type": "string"
           },
           "eligibility": {
@@ -1020,6 +1030,13 @@
         "enum": [
           "Accepted",
           "Rejected"
+        ]
+      },
+      "DebitOrderType": {
+        "enum": [
+          "DebiCheck",
+          "Registered",
+          "Eft"
         ]
       },
       "DisputeDetailDto": {

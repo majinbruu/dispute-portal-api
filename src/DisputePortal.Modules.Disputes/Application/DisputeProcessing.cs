@@ -103,6 +103,19 @@ internal static class ReturnMessageFactory
 
     public static string Create(Dispute dispute, DateTimeOffset now)
     {
+        var original = new JsonObject
+        {
+            ["ReqdColltnDt"] = dispute.TransactionDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["Cdtr"] = new JsonObject { ["Nm"] = dispute.CounterpartyName },
+            ["DbtrAcct"] = new JsonObject { ["Id"] = dispute.AccountMasked },
+        };
+
+        // An EFT debit order has no mandate to refer to.
+        if (dispute.MandateReference is not null)
+        {
+            original["MndtRltdInf"] = new JsonObject { ["MndtId"] = dispute.MandateReference };
+        }
+
         var message = new JsonObject
         {
             ["MsgDefIdr"] = "pacs.004.001.11",
@@ -127,13 +140,7 @@ internal static class ReturnMessageFactory
                     ["Orgtr"] = new JsonObject { ["Nm"] = InstructingAgent },
                     ["Rsn"] = new JsonObject { ["Cd"] = dispute.ReasonCode },
                 },
-                ["OrgnlTxRef"] = new JsonObject
-                {
-                    ["ReqdColltnDt"] = dispute.TransactionDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                    ["MndtRltdInf"] = new JsonObject { ["MndtId"] = dispute.MandateReference },
-                    ["Cdtr"] = new JsonObject { ["Nm"] = dispute.CounterpartyName },
-                    ["DbtrAcct"] = new JsonObject { ["Id"] = dispute.AccountMasked },
-                },
+                ["OrgnlTxRef"] = original,
             },
         };
 

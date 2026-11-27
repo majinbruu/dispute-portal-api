@@ -33,7 +33,9 @@ public sealed record TransactionForDispute(
     public bool IsEligible => IneligibilityCode is null;
 }
 
-public sealed record DebitOrderForDispute(string EndToEndId, string MandateType, string MandateReference);
+/// <param name="MandateType">DebiCheck, Registered or Eft.</param>
+/// <param name="MandateReference">Null for an EFT debit order, which has no mandate.</param>
+public sealed record DebitOrderForDispute(string EndToEndId, string MandateType, string? MandateReference);
 
 public sealed record CardForDispute(string Scheme, string EntryMode, string Verification, DateOnly? PostingDate);
 

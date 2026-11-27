@@ -178,6 +178,66 @@ public class DebitOrderEligibilityTests
     }
 }
 
+public class EftDebitOrderTests
+{
+    [Fact]
+    public void A_successful_eft_collection_is_disputable_and_a_rejected_one_is_not()
+    {
+        DebitOrderDisputabilityPolicy.EvaluateWithoutMandate(accepted: true)
+            .ShouldBe(new DisputabilityDecision(true, DisputabilityReason.EftDebitOrder));
+        DebitOrderDisputabilityPolicy.EvaluateWithoutMandate(accepted: false)
+            .ShouldBe(new DisputabilityDecision(false, DisputabilityReason.CollectionRejected));
+    }
+
+    [Fact]
+    public void An_eft_debit_order_has_no_mandate_and_carries_the_creditor_itself()
+    {
+        var debitOrder = TestData.EftDebitOrder(TestData.Today.AddDays(-5));
+
+        debitOrder.MandateType.ShouldBe(DebitOrderType.Eft);
+        debitOrder.MandateId.ShouldBeNull();
+        debitOrder.MandateReference.ShouldBeNull();
+        debitOrder.CounterpartyName.ShouldBe("City of Johannesburg");
+        debitOrder.CreditorShortName.ShouldBe("COJ RATES");
+        debitOrder.ContractReference.ShouldBe("COJ-550218734");
+    }
+
+    [Fact]
+    public void An_eft_debit_order_can_be_disputed_up_to_day_sixty()
+    {
+        TestData.EftDebitOrder(TestData.Today.AddDays(-60))
+            .EvaluateEligibility(TestData.Today, alreadyDisputed: false).ShouldBe(DisputeEligibility.Eligible);
+        TestData.EftDebitOrder(TestData.Today.AddDays(-61))
+            .EvaluateEligibility(TestData.Today, alreadyDisputed: false).ShouldBe(DisputeEligibility.DisputeWindowClosed);
+    }
+
+    [Fact]
+    public void A_rejected_eft_collection_cannot_be_disputed()
+    {
+        var debitOrder = TestData.EftDebitOrder(TestData.Today.AddDays(-5), CollectionResponse.Rejected("AM04"));
+
+        debitOrder.EvaluateEligibility(TestData.Today, alreadyDisputed: false).ShouldBe(DisputeEligibility.CollectionRejected);
+    }
+
+    [Fact]
+    public void An_eft_collection_must_name_the_creditor_and_the_contract()
+    {
+        Should.Throw<ArgumentException>(() => DebitOrder.RecordEft(
+            Guid.NewGuid(), TestData.Customer, new CollectingCreditor("City of Johannesburg", "COJ RATES", " "),
+            TestData.Request(TestData.Today), CollectionResponse.AcceptedResponse, TestData.Now));
+    }
+
+    [Fact]
+    public void A_debit_order_under_a_mandate_copies_the_contract_reference_from_it()
+    {
+        var debitOrder = TestData.DebitOrder(TestData.RegisteredMandate(), TestData.Today);
+
+        debitOrder.MandateType.ShouldBe(DebitOrderType.Registered);
+        debitOrder.MandateId.ShouldNotBeNull();
+        debitOrder.ContractReference.ShouldBe("VOD-1");
+    }
+}
+
 public class MandateTests
 {
     [Fact]

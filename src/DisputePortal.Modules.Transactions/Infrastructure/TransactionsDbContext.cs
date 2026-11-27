@@ -64,6 +64,7 @@ internal sealed class TransactionsDbContext(DbContextOptions<TransactionsDbConte
             debitOrder.ToTable("debit_orders");
             debitOrder.Property(d => d.MandateType).HasConversion<string>().HasMaxLength(20);
             debitOrder.Property(d => d.MandateReference).HasMaxLength(35);
+            debitOrder.Property(d => d.ContractReference).HasMaxLength(35);
             debitOrder.Property(d => d.TransactionId).HasMaxLength(35);
             debitOrder.Property(d => d.EndToEndId).HasMaxLength(35);
             debitOrder.Property(d => d.SequenceType).HasConversion<string>().HasMaxLength(20);

@@ -27,6 +27,7 @@ internal static class DebitOrderMapper
             debitOrder.MandateId,
             debitOrder.MandateType,
             debitOrder.MandateReference,
+            debitOrder.ContractReference,
             new DisputeEligibilityDto(
                 eligibility == DisputeEligibility.Eligible,
                 eligibility,
