@@ -23,10 +23,10 @@
 	import security
 
 	# OpenID Connect: discovery, signing keys, the authorisation endpoint, tokens and sign-out.
-	@oidc path 		/realms/acme-bank/.well-known/openid-configuration 		/realms/acme-bank/protocol/openid-connect/certs 		/realms/acme-bank/protocol/openid-connect/auth 		/realms/acme-bank/protocol/openid-connect/token 		/realms/acme-bank/protocol/openid-connect/logout 		/realms/acme-bank/protocol/openid-connect/logout/logout-confirm
+	@oidc path_regexp ^/realms/acme-bank/(\.well-known/openid-configuration|protocol/openid-connect/(certs|auth|token|logout|logout/logout-confirm))$
 
 	# What the sign-in pages post to: the sign-in form, a required action such as a new password, and "restart sign-in".
-	@forms path 		/realms/acme-bank/login-actions/authenticate 		/realms/acme-bank/login-actions/required-action 		/realms/acme-bank/login-actions/restart
+	@forms path_regexp ^/realms/acme-bank/login-actions/(authenticate|required-action|restart)$
 
 	# The style sheets, scripts and images of the sign-in pages. The admin and account consoles' files are left out.
 	@assets path_regexp ^/resources/[^/]+/(login|common)/
