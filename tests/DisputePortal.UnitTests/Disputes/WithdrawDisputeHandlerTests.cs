@@ -111,6 +111,25 @@ public class WithdrawDisputeHandlerTests
     }
 
     [Fact]
+    public async Task Replaying_the_request_of_a_withdrawn_dispute_returns_that_dispute_and_raises_no_new_one()
+    {
+        var debitOrder = _transactions.Add(ContractData.DebitOrder());
+        var submit = new SubmitDisputeHandler(_transactions, _disputes, _clock);
+        var command = new SubmitDisputeCommand(Customer, debitOrder.Id, "duplicate", Comment: null, "key-1");
+        var first = await submit.HandleAsync(command, CancellationToken.None);
+        await Handler.HandleAsync(Customer, first.Value.Dispute.Id, CancellationToken.None);
+
+        var replay = await submit.HandleAsync(command, CancellationToken.None);
+
+        // The key stands for the request that was already carried out. A late retry must not undo the withdrawal.
+        replay.IsSuccess.ShouldBeTrue();
+        replay.Value.Replayed.ShouldBeTrue();
+        replay.Value.Dispute.Id.ShouldBe(first.Value.Dispute.Id);
+        replay.Value.Dispute.Status.ShouldBe(DisputeStatus.Withdrawn);
+        _disputes.Disputes.Count.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task A_second_dispute_is_still_a_conflict_while_the_first_one_stands()
     {
         var debitOrder = _transactions.Add(ContractData.DebitOrder());

@@ -81,6 +81,7 @@ internal sealed class SubmitDisputeHandler(ITransactionDirectory transactions, I
             return DisputeErrors.IdempotencyKeyReused;
         }
 
+        // A replay answers with the dispute the key created, whatever became of it since, even withdrawn. A new dispute needs a new key.
         var original = await disputes.FindAsync(record.DisputeId, command.CustomerId, cancellationToken);
         return original is null
             ? DisputeErrors.IdempotencyKeyReused
