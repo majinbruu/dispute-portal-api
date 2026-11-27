@@ -30,6 +30,14 @@ internal static class TestData
             AuthenticationType: "Real-time (banking app)", AuthenticatedAt: Now.AddYears(-1)),
         Now);
 
+    public static CardTransactionDetails CardDetails(DateOnly? postingDate = null, decimal amount = 1899m) => new(
+        "4000123456784821", CardScheme.Visa, CardTransactionKind.Purchase, Money.Zar(amount), "Takealot", "Cape Town", "ZA", "5311",
+        (postingDate ?? Today).AddDays(-1), postingDate ?? Today, "123456", "74027000000000000000001",
+        CardEntryMode.ECommerce, CardholderVerification.None, CardSettlementStatus.Settled, Money.Zar(0m));
+
+    public static CardTransaction Card(CardTransactionDetails? details = null, Guid? customerId = null) =>
+        CardTransaction.Record(Guid.NewGuid(), customerId ?? Customer, "1234567890", details ?? CardDetails(), Now);
+
     public static CollectionRequest Request(DateOnly actionDate, decimal amount = 599m, string transactionId = "ACME20261101000001") => new(
         transactionId, "E2E-1", Money.Zar(amount), actionDate, SequenceType.Recurring, "VODACOM VOD-1", "1234567890");
 

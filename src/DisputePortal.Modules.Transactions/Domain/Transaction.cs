@@ -85,6 +85,9 @@ internal abstract class Transaction
             {
                 DisputabilityReason.CollectionRejected => DisputeEligibility.CollectionRejected,
                 DisputabilityReason.WithinMandateTerms => DisputeEligibility.WithinMandateTerms,
+                DisputabilityReason.NotAPurchase => DisputeEligibility.NotAPurchase,
+                DisputabilityReason.NotSettled => DisputeEligibility.NotSettled,
+                DisputabilityReason.FullyRefunded => DisputeEligibility.FullyRefunded,
                 _ => throw new InvalidOperationException($"{DisputabilityReason} is not a reason for refusing a dispute."),
             };
         }

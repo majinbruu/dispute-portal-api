@@ -3,6 +3,7 @@ namespace DisputePortal.Modules.Transactions.Domain;
 internal enum TransactionType
 {
     DebitOrder,
+    Card,
 }
 
 internal enum MandateType
@@ -58,6 +59,10 @@ internal enum DisputabilityReason
     DateOutsideMandateTerms,
     WithinMandateTerms,
     CollectionRejected,
+    CardPurchase,
+    NotAPurchase,
+    NotSettled,
+    FullyRefunded,
 }
 
 /// <summary>Whether the customer can dispute a transaction right now.</summary>
@@ -66,6 +71,57 @@ internal enum DisputeEligibility
     Eligible,
     WithinMandateTerms,
     CollectionRejected,
+    NotAPurchase,
+    NotSettled,
+    FullyRefunded,
     DisputeWindowClosed,
     AlreadyDisputed,
+}
+
+internal enum CardScheme
+{
+    Visa,
+    Mastercard,
+}
+
+internal enum CardTransactionKind
+{
+    Purchase,
+    CashWithdrawal,
+}
+
+/// <summary>How the card details reached the merchant.</summary>
+internal enum CardEntryMode
+{
+    Chip,
+    Contactless,
+
+    /// <summary>Typed into a website or app by the cardholder.</summary>
+    ECommerce,
+
+    /// <summary>Charged by the merchant from stored card details, as a subscription does.</summary>
+    Recurring,
+}
+
+/// <summary>How the cardholder proved it was them. A verified transaction cannot be disputed as "not mine".</summary>
+internal enum CardholderVerification
+{
+    Pin,
+    ThreeDSecure,
+    None,
+}
+
+internal enum CardSettlementStatus
+{
+    /// <summary>The money left the customer's account.</summary>
+    Settled,
+
+    /// <summary>Authorised and reserved, not yet posted.</summary>
+    Pending,
+
+    /// <summary>The authorisation was refused. Nothing was debited.</summary>
+    Declined,
+
+    /// <summary>Authorised and then cancelled before it was posted.</summary>
+    Reversed,
 }

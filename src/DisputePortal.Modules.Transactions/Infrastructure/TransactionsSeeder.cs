@@ -6,29 +6,37 @@ using Microsoft.EntityFrameworkCore;
 namespace DisputePortal.Modules.Transactions.Infrastructure;
 
 /// <summary>
-/// Stands in for the scheme: creates demo mandates and feeds simulated pacs.003 / pacs.002 pairs through the same
-/// <see cref="DebitOrder.Record"/> path a real collection would take. Dates are relative to today, so the
-/// 60-day scenarios hold whenever the demo is run. Customers and account numbers are synthetic.
+/// Stands in for the payment systems: creates demo mandates, feeds simulated pacs.003 / pacs.002 pairs through the
+/// same <see cref="DebitOrder.Record"/> path a real collection would take, and records demo card transactions.
+/// Dates are relative to today, so the 60-day and 120-day scenarios hold whenever the demo is run.
+/// Customers, account numbers and card numbers are synthetic.
 /// </summary>
 internal sealed class TransactionsSeeder(TransactionsDbContext db, TimeProvider timeProvider)
 {
     private const string ThandiAccount = "1234567890";
     private const string SiphoAccount = "9876504321";
+    private const string ThandiCard = "4000123456784821";
+    private const string SiphoCard = "5100123456787733";
 
     private int _sequence;
 
     public async Task SeedAsync(CancellationToken cancellationToken)
     {
-        if (await db.Mandates.AnyAsync(cancellationToken))
-        {
-            return;
-        }
-
         var now = timeProvider.GetUtcNow();
         var today = SouthAfricanTime.Today(timeProvider);
 
-        SeedThandi(now, today);
-        SeedSipho(now, today);
+        // Each kind of demo data is checked on its own, so a database seeded before a kind existed still gets it.
+        if (!await db.Mandates.AnyAsync(cancellationToken))
+        {
+            SeedThandi(now, today);
+            SeedSipho(now, today);
+        }
+
+        if (!await db.CardTransactions.AnyAsync(cancellationToken))
+        {
+            SeedThandiCard(now, today);
+            SeedSiphoCard(now, today);
+        }
 
         await db.SaveChangesAsync(cancellationToken);
     }
@@ -91,6 +99,88 @@ internal sealed class TransactionsSeeder(TransactionsDbContext db, TimeProvider 
         Collect(discovery, anchor, 2140.00m, SiphoAccount, now);
         Collect(discovery, anchor.AddMonths(-1), 2140.00m, SiphoAccount, now);
     }
+
+    private void SeedThandiCard(DateTimeOffset now, DateOnly today)
+    {
+        // Bought online without 3-D Secure, so "I did not make this transaction" is offered.
+        AddCard(DemoData.Thandi, ThandiAccount, SettledPurchase(ThandiCard, CardScheme.Visa, "Takealot", "Cape Town", "5311", 1899.00m, today.AddDays(-3), CardEntryMode.ECommerce, CardholderVerification.None), now);
+
+        // Chip and PIN, and contactless below the PIN limit.
+        AddCard(DemoData.Thandi, ThandiAccount, SettledPurchase(ThandiCard, CardScheme.Visa, "Checkers", "Sandton", "5411", 842.35m, today.AddDays(-6), CardEntryMode.Chip, CardholderVerification.Pin), now);
+        AddCard(DemoData.Thandi, ThandiAccount, SettledPurchase(ThandiCard, CardScheme.Visa, "Woolworths", "Rosebank", "5411", 315.90m, today.AddDays(-2), CardEntryMode.Contactless, CardholderVerification.None), now);
+
+        // A subscription, which offers "I cancelled this subscription".
+        AddCard(DemoData.Thandi, ThandiAccount, SettledPurchase(ThandiCard, CardScheme.Visa, "Netflix", "Johannesburg", "4899", 199.00m, today.AddDays(-9), CardEntryMode.Recurring, CardholderVerification.None), now);
+
+        // Not settled: nothing to dispute.
+        AddCard(DemoData.Thandi, ThandiAccount, SettledPurchase(ThandiCard, CardScheme.Visa, "Uber", "Johannesburg", "4121", 148.00m, today.AddDays(-1), CardEntryMode.ECommerce, CardholderVerification.ThreeDSecure) with
+        {
+            Status = CardSettlementStatus.Pending,
+            PostingDate = null,
+        }, now);
+        AddCard(DemoData.Thandi, ThandiAccount, SettledPurchase(ThandiCard, CardScheme.Visa, "Engen", "Midrand", "5541", 950.00m, today.AddDays(-4), CardEntryMode.Chip, CardholderVerification.Pin) with
+        {
+            Status = CardSettlementStatus.Declined,
+            PostingDate = null,
+        }, now);
+
+        // Already refunded in full by the merchant.
+        AddCard(DemoData.Thandi, ThandiAccount, SettledPurchase(ThandiCard, CardScheme.Visa, "Pick n Pay", "Fourways", "5411", 1204.60m, today.AddDays(-15), CardEntryMode.Chip, CardholderVerification.Pin) with
+        {
+            RefundedAmount = Money.Zar(1204.60m),
+        }, now);
+
+        // Cash withdrawals are not purchases.
+        AddCard(DemoData.Thandi, ThandiAccount, SettledPurchase(ThandiCard, CardScheme.Visa, "ACME Bank ATM", "Sandton", "6011", 2000.00m, today.AddDays(-7), CardEntryMode.Chip, CardholderVerification.Pin) with
+        {
+            Kind = CardTransactionKind.CashWithdrawal,
+        }, now);
+
+        // The 120-day window: its last day, and the day after it closed.
+        AddCard(DemoData.Thandi, ThandiAccount, SettledPurchase(ThandiCard, CardScheme.Visa, "Showmax", "Randburg", "4899", 99.00m, today.AddDays(-120), CardEntryMode.Recurring, CardholderVerification.None), now);
+        AddCard(DemoData.Thandi, ThandiAccount, SettledPurchase(ThandiCard, CardScheme.Visa, "Showmax", "Randburg", "4899", 99.00m, today.AddDays(-121), CardEntryMode.Recurring, CardholderVerification.None), now);
+
+        // The simulated scheme declines a dispute of this purchase.
+        AddCard(DemoData.Thandi, ThandiAccount, SettledPurchase(ThandiCard, CardScheme.Visa, "Takealot", "Cape Town", "5311", 2499.00m, today.AddDays(-11), CardEntryMode.ECommerce, CardholderVerification.ThreeDSecure) with
+        {
+            AcquirerReferenceNumber = DemoData.DeclinedCardReference,
+        }, now);
+    }
+
+    private void SeedSiphoCard(DateTimeOffset now, DateOnly today)
+    {
+        AddCard(DemoData.Sipho, SiphoAccount, SettledPurchase(SiphoCard, CardScheme.Mastercard, "Checkers", "Durban", "5411", 562.10m, today.AddDays(-5), CardEntryMode.Chip, CardholderVerification.Pin), now);
+        AddCard(DemoData.Sipho, SiphoAccount, SettledPurchase(SiphoCard, CardScheme.Mastercard, "Takealot", "Cape Town", "5311", 749.00m, today.AddDays(-8), CardEntryMode.ECommerce, CardholderVerification.None), now);
+        AddCard(DemoData.Sipho, SiphoAccount, SettledPurchase(SiphoCard, CardScheme.Mastercard, "Showmax", "Randburg", "4899", 99.00m, today.AddDays(-12), CardEntryMode.Recurring, CardholderVerification.None), now);
+    }
+
+    /// <summary>A settled purchase in South Africa, posted the day after the card was used. Callers change what differs.</summary>
+    private CardTransactionDetails SettledPurchase(
+        string cardNumber, CardScheme scheme, string merchant, string city, string categoryCode, decimal amount, DateOnly postingDate,
+        CardEntryMode entryMode, CardholderVerification verification)
+    {
+        _sequence++;
+        return new CardTransactionDetails(
+            cardNumber,
+            scheme,
+            CardTransactionKind.Purchase,
+            Money.Zar(amount),
+            merchant,
+            city,
+            "ZA",
+            categoryCode,
+            postingDate.AddDays(-1),
+            postingDate,
+            (_sequence * 7919 % 1_000_000).ToString("D6", CultureInfo.InvariantCulture),
+            $"7{postingDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture)}{_sequence:D14}",
+            entryMode,
+            verification,
+            CardSettlementStatus.Settled,
+            Money.Zar(0m));
+    }
+
+    private void AddCard(Guid customer, string account, CardTransactionDetails details, DateTimeOffset now) =>
+        db.CardTransactions.Add(CardTransaction.Record(Guid.NewGuid(), customer, account, details, now));
 
     /// <summary>DebiCheck collection days are capped at the 28th so that going back a month always lands on the same day.</summary>
     private static DateOnly DebiCheckAnchor(DateOnly date) => date.Day > 28 ? new DateOnly(date.Year, date.Month, 28) : date;

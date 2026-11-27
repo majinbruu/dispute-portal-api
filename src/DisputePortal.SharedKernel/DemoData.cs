@@ -21,4 +21,7 @@ public static class DemoData
 
     /// <summary>The simulated scheme rejects a return for this collection, which exercises the Declined outcome.</summary>
     public const string DeclinedTransactionId = "ACME-TX-RETURN-REJECT-0001";
+
+    /// <summary>The acquirer reference number of a card purchase whose dispute the simulated scheme declines.</summary>
+    public const string DeclinedCardReference = "74027000000000000000017";
 }

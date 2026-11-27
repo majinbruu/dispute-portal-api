@@ -207,6 +207,98 @@ namespace DisputePortal.Modules.Transactions.Infrastructure.Migrations
                     b.UseTptMappingStrategy();
                 });
 
+            modelBuilder.Entity("DisputePortal.Modules.Transactions.Domain.CardTransaction", b =>
+                {
+                    b.HasBaseType("DisputePortal.Modules.Transactions.Domain.Transaction");
+
+                    b.Property<string>("AcquirerReferenceNumber")
+                        .IsRequired()
+                        .HasMaxLength(23)
+                        .HasColumnType("character varying(23)")
+                        .HasColumnName("acquirer_reference_number");
+
+                    b.Property<string>("AuthorisationCode")
+                        .IsRequired()
+                        .HasMaxLength(6)
+                        .HasColumnType("character varying(6)")
+                        .HasColumnName("authorisation_code");
+
+                    b.Property<string>("CardNumberMasked")
+                        .IsRequired()
+                        .HasMaxLength(19)
+                        .HasColumnType("character varying(19)")
+                        .HasColumnName("card_number_masked");
+
+                    b.Property<string>("EntryMode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("entry_mode");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("MerchantCategoryCode")
+                        .IsRequired()
+                        .HasMaxLength(4)
+                        .HasColumnType("character(4)")
+                        .HasColumnName("merchant_category_code")
+                        .IsFixedLength();
+
+                    b.Property<string>("MerchantCity")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("merchant_city");
+
+                    b.Property<string>("MerchantCountry")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character(2)")
+                        .HasColumnName("merchant_country")
+                        .IsFixedLength();
+
+                    b.Property<DateOnly?>("PostingDate")
+                        .HasColumnType("date")
+                        .HasColumnName("posting_date");
+
+                    b.Property<decimal>("RefundedAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("refunded_amount");
+
+                    b.Property<string>("Scheme")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("scheme");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateOnly>("TransactionDate")
+                        .HasColumnType("date")
+                        .HasColumnName("transaction_date");
+
+                    b.Property<string>("Verification")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("verification");
+
+                    b.HasIndex("AcquirerReferenceNumber")
+                        .IsUnique()
+                        .HasDatabaseName("ix_card_transactions_acquirer_reference_number");
+
+                    b.ToTable("card_transactions", "transactions");
+                });
+
             modelBuilder.Entity("DisputePortal.Modules.Transactions.Domain.DebitOrder", b =>
                 {
                     b.HasBaseType("DisputePortal.Modules.Transactions.Domain.Transaction");
@@ -276,6 +368,16 @@ namespace DisputePortal.Modules.Transactions.Infrastructure.Migrations
                         .HasDatabaseName("ix_debit_orders_transaction_id");
 
                     b.ToTable("debit_orders", "transactions");
+                });
+
+            modelBuilder.Entity("DisputePortal.Modules.Transactions.Domain.CardTransaction", b =>
+                {
+                    b.HasOne("DisputePortal.Modules.Transactions.Domain.Transaction", null)
+                        .WithOne()
+                        .HasForeignKey("DisputePortal.Modules.Transactions.Domain.CardTransaction", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_card_transactions_transactions_id");
                 });
 
             modelBuilder.Entity("DisputePortal.Modules.Transactions.Domain.DebitOrder", b =>

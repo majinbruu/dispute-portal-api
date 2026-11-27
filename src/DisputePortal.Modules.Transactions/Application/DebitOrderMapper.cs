@@ -57,20 +57,33 @@ internal static class DebitOrderMapper
 
 internal static class EligibilityMessages
 {
-    public static string For(DisputeEligibility eligibility, DebitOrder debitOrder) => eligibility switch
+    public static string For(DisputeEligibility eligibility, Transaction transaction)
     {
-        DisputeEligibility.Eligible =>
-            $"You can dispute this debit order until {debitOrder.LastDisputeDate:d MMMM yyyy}.",
-        DisputeEligibility.WithinMandateTerms =>
-            "This debit order matches the DebiCheck mandate you approved, so it cannot be disputed. Contact the service provider to query it.",
-        DisputeEligibility.CollectionRejected =>
-            "This debit order was rejected, so no money left your account and there is nothing to dispute.",
-        DisputeEligibility.DisputeWindowClosed =>
-            $"The 60-day dispute period ended on {debitOrder.LastDisputeDate:d MMMM yyyy}. Contact the service provider to resolve it.",
-        DisputeEligibility.AlreadyDisputed =>
-            "You have already disputed this debit order.",
-        _ => throw new ArgumentOutOfRangeException(nameof(eligibility), eligibility, null),
-    };
+        var isCard = transaction.Type == TransactionType.Card;
+        var name = isCard ? "card transaction" : "debit order";
+
+        return eligibility switch
+        {
+            DisputeEligibility.Eligible =>
+                $"You can dispute this {name} until {transaction.LastDisputeDate:d MMMM yyyy}.",
+            DisputeEligibility.WithinMandateTerms =>
+                "This debit order matches the DebiCheck mandate you approved, so it cannot be disputed. Contact the service provider to query it.",
+            DisputeEligibility.CollectionRejected =>
+                "This debit order was rejected, so no money left your account and there is nothing to dispute.",
+            DisputeEligibility.NotAPurchase =>
+                "Only card purchases can be disputed here. Contact the bank about a cash withdrawal.",
+            DisputeEligibility.NotSettled =>
+                "Only a settled card transaction can be disputed.",
+            DisputeEligibility.FullyRefunded =>
+                "The merchant has already refunded this card transaction in full.",
+            DisputeEligibility.DisputeWindowClosed => isCard
+                ? $"The {CardDisputabilityPolicy.DisputeWindowDays}-day dispute period ended on {transaction.LastDisputeDate:d MMMM yyyy}. Contact the merchant to resolve it."
+                : $"The {DebitOrderDisputabilityPolicy.DisputeWindowDays}-day dispute period ended on {transaction.LastDisputeDate:d MMMM yyyy}. Contact the service provider to resolve it.",
+            DisputeEligibility.AlreadyDisputed =>
+                $"You have already disputed this {name}.",
+            _ => throw new ArgumentOutOfRangeException(nameof(eligibility), eligibility, null),
+        };
+    }
 }
 
 /// <summary>Customer wording for the ISO 20022 status reason codes we expect on a rejected collection.</summary>
