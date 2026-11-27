@@ -53,7 +53,7 @@ internal sealed class TransactionsSeeder(TransactionsDbContext db, TimeProvider 
         // Registered mandates: collections are disputable inside the 60-day window.
         var vodacom = AddMandate(Registered(customer, "Vodacom", "VODACOM", "VOD-7741203", 599.00m, collectionDay: 1), now);
         Collect(vodacom, today.AddDays(-5), 599.00m, ThandiAccount, now);
-        Collect(vodacom, today.AddDays(-35), 599.00m, ThandiAccount, now);
+        Collect(vodacom, today.AddDays(-35), 599.00m, ThandiAccount, now, id: DemoData.WithdrawnDebitOrderId);
         Collect(vodacom, today.AddDays(-60), 599.00m, ThandiAccount, now);  // last disputable day
         Collect(vodacom, today.AddDays(-61), 599.00m, ThandiAccount, now);  // window closed
         CollectMonthlyHistory(vodacom, today.AddDays(-95), months: 9, 599.00m, ThandiAccount, now);
@@ -110,7 +110,7 @@ internal sealed class TransactionsSeeder(TransactionsDbContext db, TimeProvider 
     {
         var rates = new CollectingCreditor("City of Johannesburg", "COJ RATES", "COJ-550218734");
         CollectEft(rates, today.AddDays(-6), 1486.20m, now);
-        CollectEft(rates, today.AddDays(-37), 1452.75m, now);
+        CollectEft(rates, today.AddDays(-37), 1452.75m, now, id: DemoData.AgentRejectedDebitOrderId);
         CollectEft(rates, today.AddDays(-67), 1452.75m, now);  // window closed
 
         var insurance = new CollectingCreditor("King Price Insurance", "KING PRICE", "KP-88120031");
@@ -118,7 +118,8 @@ internal sealed class TransactionsSeeder(TransactionsDbContext db, TimeProvider 
         CollectEft(insurance, today.AddDays(-32), 912.00m, now);
     }
 
-    private void CollectEft(CollectingCreditor creditor, DateOnly actionDate, decimal amount, DateTimeOffset now, CollectionResponse? response = null)
+    private void CollectEft(
+        CollectingCreditor creditor, DateOnly actionDate, decimal amount, DateTimeOffset now, CollectionResponse? response = null, Guid? id = null)
     {
         _sequence++;
         var datePart = actionDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
@@ -133,20 +134,20 @@ internal sealed class TransactionsSeeder(TransactionsDbContext db, TimeProvider 
             $"{creditor.ShortName} {creditor.ContractReference}",
             ThandiAccount);
 
-        db.DebitOrders.Add(DebitOrder.RecordEft(Guid.NewGuid(), DemoData.Thandi, creditor, request, response ?? CollectionResponse.AcceptedResponse, now));
+        db.DebitOrders.Add(DebitOrder.RecordEft(id ?? Guid.NewGuid(), DemoData.Thandi, creditor, request, response ?? CollectionResponse.AcceptedResponse, now));
     }
 
     private void SeedThandiCard(DateTimeOffset now, DateOnly today)
     {
         // Bought online without 3-D Secure, so "I did not make this transaction" is offered.
-        AddCard(DemoData.Thandi, ThandiAccount, SettledPurchase(ThandiCard, CardScheme.Visa, "Takealot", "Cape Town", "5311", 1899.00m, today.AddDays(-3), CardEntryMode.ECommerce, CardholderVerification.None), now);
+        AddCard(DemoData.Thandi, ThandiAccount, SettledPurchase(ThandiCard, CardScheme.Visa, "Takealot", "Cape Town", "5311", 1899.00m, today.AddDays(-3), CardEntryMode.ECommerce, CardholderVerification.None), now, DemoData.PendingCardId);
 
         // Chip and PIN, and contactless below the PIN limit.
         AddCard(DemoData.Thandi, ThandiAccount, SettledPurchase(ThandiCard, CardScheme.Visa, "Checkers", "Sandton", "5411", 842.35m, today.AddDays(-6), CardEntryMode.Chip, CardholderVerification.Pin), now);
-        AddCard(DemoData.Thandi, ThandiAccount, SettledPurchase(ThandiCard, CardScheme.Visa, "Woolworths", "Rosebank", "5411", 315.90m, today.AddDays(-2), CardEntryMode.Contactless, CardholderVerification.None), now);
+        AddCard(DemoData.Thandi, ThandiAccount, SettledPurchase(ThandiCard, CardScheme.Visa, "Woolworths", "Rosebank", "5411", 315.90m, today.AddDays(-2), CardEntryMode.Contactless, CardholderVerification.None), now, DemoData.WithdrawnCardId);
 
         // A subscription, which offers "I cancelled this subscription".
-        AddCard(DemoData.Thandi, ThandiAccount, SettledPurchase(ThandiCard, CardScheme.Visa, "Netflix", "Johannesburg", "4899", 199.00m, today.AddDays(-9), CardEntryMode.Recurring, CardholderVerification.None), now);
+        AddCard(DemoData.Thandi, ThandiAccount, SettledPurchase(ThandiCard, CardScheme.Visa, "Netflix", "Johannesburg", "4899", 199.00m, today.AddDays(-9), CardEntryMode.Recurring, CardholderVerification.None), now, DemoData.RefundedCardId);
 
         // Not settled: nothing to dispute.
         AddCard(DemoData.Thandi, ThandiAccount, SettledPurchase(ThandiCard, CardScheme.Visa, "Uber", "Johannesburg", "4121", 148.00m, today.AddDays(-1), CardEntryMode.ECommerce, CardholderVerification.ThreeDSecure) with
@@ -180,13 +181,13 @@ internal sealed class TransactionsSeeder(TransactionsDbContext db, TimeProvider 
         AddCard(DemoData.Thandi, ThandiAccount, SettledPurchase(ThandiCard, CardScheme.Visa, "Takealot", "Cape Town", "5311", 2499.00m, today.AddDays(-11), CardEntryMode.ECommerce, CardholderVerification.ThreeDSecure) with
         {
             AcquirerReferenceNumber = DemoData.DeclinedCardReference,
-        }, now);
+        }, now, DemoData.DeclinedCardId);
     }
 
     private void SeedSiphoCard(DateTimeOffset now, DateOnly today)
     {
         AddCard(DemoData.Sipho, SiphoAccount, SettledPurchase(SiphoCard, CardScheme.Mastercard, "Checkers", "Durban", "5411", 562.10m, today.AddDays(-5), CardEntryMode.Chip, CardholderVerification.Pin), now);
-        AddCard(DemoData.Sipho, SiphoAccount, SettledPurchase(SiphoCard, CardScheme.Mastercard, "Takealot", "Cape Town", "5311", 749.00m, today.AddDays(-8), CardEntryMode.ECommerce, CardholderVerification.None), now);
+        AddCard(DemoData.Sipho, SiphoAccount, SettledPurchase(SiphoCard, CardScheme.Mastercard, "Takealot", "Cape Town", "5311", 749.00m, today.AddDays(-8), CardEntryMode.ECommerce, CardholderVerification.None), now, DemoData.SiphoPendingCardId);
         AddCard(DemoData.Sipho, SiphoAccount, SettledPurchase(SiphoCard, CardScheme.Mastercard, "Showmax", "Randburg", "4899", 99.00m, today.AddDays(-12), CardEntryMode.Recurring, CardholderVerification.None), now);
     }
 
@@ -215,8 +216,9 @@ internal sealed class TransactionsSeeder(TransactionsDbContext db, TimeProvider 
             Money.Zar(0m));
     }
 
-    private void AddCard(Guid customer, string account, CardTransactionDetails details, DateTimeOffset now) =>
-        db.CardTransactions.Add(CardTransaction.Record(Guid.NewGuid(), customer, account, details, now));
+    /// <param name="id">Fixed for the transactions the demo disputes are raised against.</param>
+    private void AddCard(Guid customer, string account, CardTransactionDetails details, DateTimeOffset now, Guid? id = null) =>
+        db.CardTransactions.Add(CardTransaction.Record(id ?? Guid.NewGuid(), customer, account, details, now));
 
     /// <summary>DebiCheck collection days are capped at the 28th so that going back a month always lands on the same day.</summary>
     private static DateOnly DebiCheckAnchor(DateOnly date) => date.Day > 28 ? new DateOnly(date.Year, date.Month, 28) : date;

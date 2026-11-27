@@ -76,11 +76,7 @@ internal sealed class DisputeProcessingService(ISchemeGateway scheme, TimeProvid
     public void SendToScheme(Dispute dispute, DisputeActor approvedBy)
     {
         var now = timeProvider.GetUtcNow();
-        var payload = dispute.TransactionType == DisputedTransactionType.Card
-            ? ChargebackRecordFactory.Create(dispute, now)
-            : ReturnMessageFactory.Create(dispute, now);
-
-        dispute.MarkSentToScheme(payload, approvedBy, now);
+        dispute.MarkSentToScheme(SchemePayloadFactory.Create(dispute, now), approvedBy, now);
     }
 
     public void ApplySchemeOutcome(Dispute dispute)
@@ -99,6 +95,14 @@ internal sealed class DisputeProcessingService(ISchemeGateway scheme, TimeProvid
 
         PortalMetrics.DisputesCompleted.Add(1, new KeyValuePair<string, object?>("outcome", dispute.Status.ToString()));
     }
+}
+
+/// <summary>What is sent to the scheme for a dispute: a pacs.004 for a debit order, a chargeback record for a card transaction.</summary>
+internal static class SchemePayloadFactory
+{
+    public static string Create(Dispute dispute, DateTimeOffset now) => dispute.TransactionType == DisputedTransactionType.Card
+        ? ChargebackRecordFactory.Create(dispute, now)
+        : ReturnMessageFactory.Create(dispute, now);
 }
 
 /// <summary>
