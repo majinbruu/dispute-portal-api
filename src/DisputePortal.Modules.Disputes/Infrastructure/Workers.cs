@@ -104,7 +104,7 @@ internal sealed class DisputeProcessorWorker(
         {
             if (dispute.Status == DisputeStatus.Submitted)
             {
-                processing.SendToScheme(dispute);
+                processing.SendToScheme(dispute, DisputeActor.System);
             }
             else
             {

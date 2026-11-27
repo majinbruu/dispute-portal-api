@@ -161,7 +161,8 @@ namespace DisputePortal.Modules.Disputes.Infrastructure.Migrations
 
                     b.HasIndex("TransactionId")
                         .IsUnique()
-                        .HasDatabaseName("ix_disputes_transaction_id");
+                        .HasDatabaseName("ix_disputes_transaction_id")
+                        .HasFilter("status <> 'Withdrawn'");
 
                     b.HasIndex("CustomerId", "SubmittedAt")
                         .IsDescending(false, true)
@@ -173,11 +174,60 @@ namespace DisputePortal.Modules.Disputes.Infrastructure.Migrations
                     b.ToTable("disputes", "disputes");
                 });
 
+            modelBuilder.Entity("DisputePortal.Modules.Disputes.Domain.DisputeComment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AuthorSubjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("author_subject_id");
+
+                    b.Property<string>("AuthorType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("author_type");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("body");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("DisputeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("dispute_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_dispute_comments");
+
+                    b.HasIndex("DisputeId", "CreatedAt")
+                        .HasDatabaseName("ix_dispute_comments_dispute_id_created_at");
+
+                    b.ToTable("dispute_comments", "disputes");
+                });
+
             modelBuilder.Entity("DisputePortal.Modules.Disputes.Domain.DisputeEvent", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<Guid?>("ActorSubjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_subject_id");
+
+                    b.Property<string>("ActorType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("actor_type");
 
                     b.Property<string>("Description")
                         .IsRequired()
@@ -291,6 +341,16 @@ namespace DisputePortal.Modules.Disputes.Infrastructure.Migrations
                     b.ToTable("outbox_messages", "disputes");
                 });
 
+            modelBuilder.Entity("DisputePortal.Modules.Disputes.Domain.DisputeComment", b =>
+                {
+                    b.HasOne("DisputePortal.Modules.Disputes.Domain.Dispute", null)
+                        .WithMany("Comments")
+                        .HasForeignKey("DisputeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_dispute_comments_disputes_dispute_id");
+                });
+
             modelBuilder.Entity("DisputePortal.Modules.Disputes.Domain.DisputeEvent", b =>
                 {
                     b.HasOne("DisputePortal.Modules.Disputes.Domain.Dispute", null)
@@ -303,6 +363,8 @@ namespace DisputePortal.Modules.Disputes.Infrastructure.Migrations
 
             modelBuilder.Entity("DisputePortal.Modules.Disputes.Domain.Dispute", b =>
                 {
+                    b.Navigation("Comments");
+
                     b.Navigation("Events");
                 });
 #pragma warning restore 612, 618

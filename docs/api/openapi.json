@@ -1116,6 +1116,13 @@
           "Eft"
         ]
       },
+      "DisputeActorType": {
+        "enum": [
+          "Customer",
+          "Agent",
+          "System"
+        ]
+      },
       "DisputeDetailDto": {
         "required": [
           "id",
@@ -1275,6 +1282,7 @@
         "required": [
           "status",
           "description",
+          "actor",
           "occurredAt"
         ],
         "type": "object",
@@ -1284,6 +1292,9 @@
           },
           "description": {
             "type": "string"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/DisputeActorType"
           },
           "occurredAt": {
             "type": "string",
@@ -1341,7 +1352,8 @@
           "Submitted",
           "SentToScheme",
           "Refunded",
-          "Declined"
+          "Declined",
+          "Withdrawn"
         ]
       },
       "DisputeSummaryDto": {

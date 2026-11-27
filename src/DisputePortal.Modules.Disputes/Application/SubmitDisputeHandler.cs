@@ -12,7 +12,8 @@ internal sealed record SubmitDisputeOutcome(Dispute Dispute, bool Replayed);
 
 /// <summary>
 /// Raises a dispute. Safe to retry: the same idempotency key with the same body returns the original dispute,
-/// and a unique index on the transaction is the final guard against a double submission.
+/// and a unique index on the transaction is the final guard against a double submission. A withdrawn dispute
+/// does not count, so the same transaction can be disputed again.
 /// </summary>
 internal sealed class SubmitDisputeHandler(ITransactionDirectory transactions, IDisputeRepository disputes, TimeProvider timeProvider)
 {
@@ -50,7 +51,7 @@ internal sealed class SubmitDisputeHandler(ITransactionDirectory transactions, I
         }
 
         var now = timeProvider.GetUtcNow();
-        var dispute = Dispute.Submit(Guid.NewGuid(), DisputeReference.New(now), command.CustomerId, transaction, command.ReasonId, now);
+        var dispute = Dispute.Submit(Guid.NewGuid(), DisputeReference.New(now), command.CustomerId, transaction, command.ReasonId, comment: null, now);
 
         var idempotencyRecord = new IdempotencyRecord(command.CustomerId, command.IdempotencyKey, requestHash, dispute.Id, now);
         if (!await disputes.TryAddAsync(dispute, idempotencyRecord, cancellationToken))

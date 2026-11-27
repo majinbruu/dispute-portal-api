@@ -65,14 +65,15 @@ internal sealed class SimulatedSchemeGateway(IOptions<SchemeSimulatorOptions> op
 /// <summary>Moves disputes through their lifecycle. Pure logic: the worker supplies locked disputes and saves the result.</summary>
 internal sealed class DisputeProcessingService(ISchemeGateway scheme, TimeProvider timeProvider)
 {
-    public void SendToScheme(Dispute dispute)
+    /// <param name="approvedBy">The agent who approved the dispute, or the system when it was approved automatically.</param>
+    public void SendToScheme(Dispute dispute, DisputeActor approvedBy)
     {
         var now = timeProvider.GetUtcNow();
         var payload = dispute.TransactionType == DisputedTransactionType.Card
             ? ChargebackRecordFactory.Create(dispute, now)
             : ReturnMessageFactory.Create(dispute, now);
 
-        dispute.MarkSentToScheme(payload, now);
+        dispute.MarkSentToScheme(payload, approvedBy, now);
     }
 
     public void ApplySchemeOutcome(Dispute dispute)
@@ -175,19 +176,73 @@ internal static class ChargebackRecordFactory
     }
 }
 
-/// <summary>Delivers one outbox message to its consumers and records the result on the message.</summary>
-internal sealed class OutboxProcessor(IEnumerable<IDisputeStatusChangedHandler> handlers, TimeProvider timeProvider, ILogger<OutboxProcessor> logger)
+/// <summary>Turns something that happened to a dispute into the outbox message that tells other modules about it.</summary>
+internal static class OutboxMessageFactory
+{
+    public static OutboxMessage Create(Dispute dispute, IDisputeDomainEvent domainEvent) => domainEvent switch
+    {
+        DisputeStatusChangedDomainEvent statusChanged => Create(
+            nameof(DisputeStatusChanged),
+            new DisputeStatusChanged(
+                dispute.Id,
+                dispute.CustomerId,
+                dispute.Reference,
+                statusChanged.Status.ToString(),
+                dispute.TransactionType.ToString(),
+                dispute.Amount,
+                dispute.Currency,
+                dispute.CounterpartyName,
+                statusChanged.Status is DisputeStatus.Refunded or DisputeStatus.Declined ? dispute.OutcomeNote : null,
+                statusChanged.OccurredAt),
+            statusChanged.OccurredAt),
+        AgentCommentAddedDomainEvent commentAdded => Create(
+            nameof(AgentCommentAdded),
+            new AgentCommentAdded(dispute.Id, dispute.CustomerId, dispute.Reference, commentAdded.CommentId, commentAdded.OccurredAt),
+            commentAdded.OccurredAt),
+        _ => throw new ArgumentOutOfRangeException(nameof(domainEvent), domainEvent.GetType().Name, "There is no outbox message for this event."),
+    };
+
+    private static OutboxMessage Create<T>(string type, T payload, DateTimeOffset occurredAt) =>
+        new(Guid.NewGuid(), type, JsonSerializer.Serialize(payload), occurredAt);
+}
+
+/// <summary>
+/// Delivers one outbox message to the consumers of its type and records the result on the message.
+/// The message type decides how the payload is read and which handlers receive it.
+/// </summary>
+internal sealed class OutboxProcessor(
+    IEnumerable<IDisputeStatusChangedHandler> statusChangedHandlers,
+    IEnumerable<IAgentCommentAddedHandler> agentCommentAddedHandlers,
+    TimeProvider timeProvider,
+    ILogger<OutboxProcessor> logger)
 {
     public async Task ProcessAsync(OutboxMessage message, CancellationToken cancellationToken)
     {
         try
         {
-            var payload = JsonSerializer.Deserialize<DisputeStatusChanged>(message.Payload)
-                ?? throw new JsonException("The outbox payload was empty.");
-
-            foreach (var handler in handlers)
+            switch (message.Type)
             {
-                await handler.HandleAsync(message.Id, payload, cancellationToken);
+                case nameof(DisputeStatusChanged):
+                    var statusChanged = Read<DisputeStatusChanged>(message);
+                    foreach (var handler in statusChangedHandlers)
+                    {
+                        await handler.HandleAsync(message.Id, statusChanged, cancellationToken);
+                    }
+
+                    break;
+
+                case nameof(AgentCommentAdded):
+                    var commentAdded = Read<AgentCommentAdded>(message);
+                    foreach (var handler in agentCommentAddedHandlers)
+                    {
+                        await handler.HandleAsync(message.Id, commentAdded, cancellationToken);
+                    }
+
+                    break;
+
+                default:
+                    // Treated like any other failed delivery: retried, then abandoned and alerted on, never silently dropped.
+                    throw new InvalidOperationException($"There is no consumer for outbox messages of type '{message.Type}'.");
             }
 
             message.MarkProcessed(timeProvider.GetUtcNow());
@@ -210,4 +265,7 @@ internal sealed class OutboxProcessor(IEnumerable<IDisputeStatusChangedHandler> 
             }
         }
     }
+
+    private static T Read<T>(OutboxMessage message) =>
+        JsonSerializer.Deserialize<T>(message.Payload) ?? throw new JsonException("The outbox payload was empty.");
 }

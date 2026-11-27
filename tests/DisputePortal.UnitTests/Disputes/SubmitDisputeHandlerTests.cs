@@ -257,11 +257,11 @@ internal sealed class InMemoryDisputeRepository : IDisputeRepository
         Task.FromResult(Disputes.FirstOrDefault(d => d.Id == disputeId && d.CustomerId == customerId));
 
     public Task<bool> ExistsForTransactionAsync(Guid transactionId, CancellationToken cancellationToken) =>
-        Task.FromResult(Disputes.Any(d => d.TransactionId == transactionId));
+        Task.FromResult(Disputes.Any(d => d.TransactionId == transactionId && d.Status != DisputeStatus.Withdrawn));
 
     public Task<bool> TryAddAsync(Dispute dispute, IdempotencyRecord idempotencyRecord, CancellationToken cancellationToken)
     {
-        if (FailNextAddAsDuplicate || Disputes.Any(d => d.TransactionId == dispute.TransactionId))
+        if (FailNextAddAsDuplicate || Disputes.Any(d => d.TransactionId == dispute.TransactionId && d.Status != DisputeStatus.Withdrawn))
         {
             FailNextAddAsDuplicate = false;
             return Task.FromResult(false);

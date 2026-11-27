@@ -1,5 +1,4 @@
-using System.Text.Json;
-using DisputePortal.Modules.Disputes.Contracts;
+using DisputePortal.Modules.Disputes.Application;
 using DisputePortal.Modules.Disputes.Domain;
 using Microsoft.EntityFrameworkCore;
 
@@ -61,14 +60,18 @@ internal sealed class DisputesDbContext(DbContextOptions<DisputesDbContext> opti
                 .IsConcurrencyToken();
 
             dispute.Ignore(d => d.DomainEvents);
+            dispute.Ignore(d => d.IsAwaitingReview);
+            dispute.Ignore(d => d.IsOpen);
             dispute.Ignore(d => d.IsCompleted);
 
             dispute.HasMany(d => d.Events).WithOne().HasForeignKey(e => e.DisputeId).OnDelete(DeleteBehavior.Cascade);
+            dispute.HasMany(d => d.Comments).WithOne().HasForeignKey(c => c.DisputeId).OnDelete(DeleteBehavior.Cascade);
 
             dispute.HasIndex(d => d.Reference).IsUnique();
 
-            // One dispute per transaction. This is the final guard against a double submission.
-            dispute.HasIndex(d => d.TransactionId).IsUnique();
+            // One dispute per transaction, which is the final guard against a double submission. A withdrawn
+            // dispute is left out of the index, so the customer can dispute the same transaction again.
+            dispute.HasIndex(d => d.TransactionId).IsUnique().HasFilter("status <> 'Withdrawn'");
             dispute.HasIndex(d => new { d.CustomerId, d.SubmittedAt }).IsDescending(false, true);
             dispute.HasIndex(d => new { d.Status, d.SubmittedAt });
         });
@@ -82,7 +85,20 @@ internal sealed class DisputesDbContext(DbContextOptions<DisputesDbContext> opti
             disputeEvent.Property(e => e.Id).ValueGeneratedNever();
             disputeEvent.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
             disputeEvent.Property(e => e.Description).HasMaxLength(500);
+            disputeEvent.Property(e => e.ActorType).HasConversion<string>().HasMaxLength(20);
             disputeEvent.HasIndex(e => new { e.DisputeId, e.OccurredAt });
+        });
+
+        modelBuilder.Entity<DisputeComment>(comment =>
+        {
+            comment.ToTable("dispute_comments");
+            comment.HasKey(c => c.Id);
+
+            // Assigned in code, for the same reason as the event keys.
+            comment.Property(c => c.Id).ValueGeneratedNever();
+            comment.Property(c => c.AuthorType).HasConversion<string>().HasMaxLength(20);
+            comment.Property(c => c.Body).HasMaxLength(DisputeComment.MaxLength);
+            comment.HasIndex(c => new { c.DisputeId, c.CreatedAt });
         });
 
         modelBuilder.Entity<OutboxMessage>(message =>
@@ -107,7 +123,7 @@ internal sealed class DisputesDbContext(DbContextOptions<DisputesDbContext> opti
         });
     }
 
-    /// <summary>Turns the status changes raised by tracked disputes into outbox rows, inside the same save.</summary>
+    /// <summary>Turns the status changes and agent comments raised by tracked disputes into outbox rows, inside the same save.</summary>
     private void WriteDomainEventsToOutbox()
     {
         var disputes = ChangeTracker.Entries<Dispute>()
@@ -119,21 +135,7 @@ internal sealed class DisputesDbContext(DbContextOptions<DisputesDbContext> opti
         {
             foreach (var domainEvent in dispute.DomainEvents)
             {
-                var isOutcome = domainEvent.Status is DisputeStatus.Refunded or DisputeStatus.Declined;
-                var message = new DisputeStatusChanged(
-                    dispute.Id,
-                    dispute.CustomerId,
-                    dispute.Reference,
-                    domainEvent.Status.ToString(),
-                    dispute.TransactionType.ToString(),
-                    dispute.Amount,
-                    dispute.Currency,
-                    dispute.CounterpartyName,
-                    isOutcome ? dispute.OutcomeNote : null,
-                    domainEvent.OccurredAt);
-
-                OutboxMessages.Add(new OutboxMessage(
-                    Guid.NewGuid(), nameof(DisputeStatusChanged), JsonSerializer.Serialize(message), domainEvent.OccurredAt));
+                OutboxMessages.Add(OutboxMessageFactory.Create(dispute, domainEvent));
             }
 
             dispute.ClearDomainEvents();

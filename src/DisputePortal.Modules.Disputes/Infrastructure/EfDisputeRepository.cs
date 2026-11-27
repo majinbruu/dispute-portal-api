@@ -18,7 +18,7 @@ internal sealed class EfDisputeRepository(DisputesDbContext db) : IDisputeReposi
             .FirstOrDefaultAsync(d => d.Id == disputeId && d.CustomerId == customerId, cancellationToken);
 
     public Task<bool> ExistsForTransactionAsync(Guid transactionId, CancellationToken cancellationToken) =>
-        db.Disputes.AnyAsync(d => d.TransactionId == transactionId, cancellationToken);
+        db.Disputes.AnyAsync(d => d.TransactionId == transactionId && d.Status != DisputeStatus.Withdrawn, cancellationToken);
 
     public async Task<bool> TryAddAsync(Dispute dispute, IdempotencyRecord idempotencyRecord, CancellationToken cancellationToken)
     {
@@ -45,7 +45,7 @@ internal sealed class EfDisputeRepository(DisputesDbContext db) : IDisputeReposi
         query = state switch
         {
             DisputeState.Pending => query.Where(d => d.Status == DisputeStatus.Submitted || d.Status == DisputeStatus.SentToScheme),
-            DisputeState.Completed => query.Where(d => d.Status == DisputeStatus.Refunded || d.Status == DisputeStatus.Declined),
+            DisputeState.Completed => query.Where(d => d.Status != DisputeStatus.Submitted && d.Status != DisputeStatus.SentToScheme),
             _ => query,
         };
 
@@ -58,7 +58,10 @@ internal sealed class EfDisputeRepository(DisputesDbContext db) : IDisputeReposi
     }
 }
 
-/// <summary>Tells the Transactions module which transactions already have a dispute, through that module's own contract.</summary>
+/// <summary>
+/// Tells the Transactions module which transactions already have a dispute, through that module's own contract.
+/// A withdrawn dispute is left out, so the transaction is shown as disputable again.
+/// </summary>
 internal sealed class DisputeStatusProvider(DisputesDbContext db) : IDisputeStatusProvider
 {
     public async Task<IReadOnlyDictionary<Guid, TransactionDisputeStatus>> GetForTransactionsAsync(
@@ -70,7 +73,7 @@ internal sealed class DisputeStatusProvider(DisputesDbContext db) : IDisputeStat
         }
 
         var rows = await db.Disputes.AsNoTracking()
-            .Where(d => transactionIds.Contains(d.TransactionId))
+            .Where(d => transactionIds.Contains(d.TransactionId) && d.Status != DisputeStatus.Withdrawn)
             .Select(d => new { d.TransactionId, d.Id, d.Reference, d.Status })
             .ToListAsync(cancellationToken);
 

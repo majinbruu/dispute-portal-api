@@ -24,7 +24,7 @@ public class DisputeProcessingServiceTests
     {
         var dispute = DisputeTestData.Submitted();
 
-        Service.SendToScheme(dispute);
+        Service.SendToScheme(dispute, DisputeActor.System);
 
         dispute.Status.ShouldBe(DisputeStatus.SentToScheme);
         dispute.SentToSchemeAt.ShouldBe(DisputeTestData.Now);
@@ -38,7 +38,7 @@ public class DisputeProcessingServiceTests
     {
         var dispute = DisputeTestData.Submitted(DisputeTestData.Card(), "duplicate");
 
-        Service.SendToScheme(dispute);
+        Service.SendToScheme(dispute, DisputeActor.System);
 
         dispute.Status.ShouldBe(DisputeStatus.SentToScheme);
         dispute.SchemePayload.ShouldNotBeNull();
@@ -51,7 +51,7 @@ public class DisputeProcessingServiceTests
     public void A_card_dispute_the_scheme_accepts_ends_in_a_refund()
     {
         var dispute = DisputeTestData.Submitted(DisputeTestData.Card(), "duplicate");
-        Service.SendToScheme(dispute);
+        Service.SendToScheme(dispute, DisputeActor.System);
 
         Service.ApplySchemeOutcome(dispute);
 
@@ -62,7 +62,7 @@ public class DisputeProcessingServiceTests
     public void A_card_dispute_on_the_decline_list_ends_declined_because_the_merchant_proved_the_charge()
     {
         var dispute = DisputeTestData.Submitted(DisputeTestData.Card(acquirerReferenceNumber: DeclinedCard), "duplicate");
-        Service.SendToScheme(dispute);
+        Service.SendToScheme(dispute, DisputeActor.System);
 
         Service.ApplySchemeOutcome(dispute);
 
@@ -75,7 +75,7 @@ public class DisputeProcessingServiceTests
     public void A_return_the_scheme_accepts_ends_in_a_refund()
     {
         var dispute = DisputeTestData.Submitted();
-        Service.SendToScheme(dispute);
+        Service.SendToScheme(dispute, DisputeActor.System);
 
         Service.ApplySchemeOutcome(dispute);
 
@@ -86,7 +86,7 @@ public class DisputeProcessingServiceTests
     public void A_return_the_scheme_rejects_ends_declined_with_an_explanation()
     {
         var dispute = DisputeTestData.Submitted(transactionId: DeclinedDebitOrder);
-        Service.SendToScheme(dispute);
+        Service.SendToScheme(dispute, DisputeActor.System);
 
         Service.ApplySchemeOutcome(dispute);
 
@@ -99,8 +99,9 @@ public class OutboxProcessorTests
 {
     private readonly FakeTimeProvider _clock = new(DisputeTestData.Now);
     private readonly RecordingHandler _handler = new();
+    private readonly RecordingCommentHandler _commentHandler = new();
 
-    private OutboxProcessor Processor => new([_handler], _clock, NullLogger<OutboxProcessor>.Instance);
+    private OutboxProcessor Processor => new([_handler], [_commentHandler], _clock, NullLogger<OutboxProcessor>.Instance);
 
     [Fact]
     public async Task Delivers_the_event_to_every_handler_and_marks_the_message_processed()
@@ -145,6 +146,41 @@ public class OutboxProcessorTests
 
         message.IsAbandoned.ShouldBeTrue();
         message.ProcessedAt.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task An_agent_comment_message_goes_to_the_comment_handlers_and_not_to_the_status_handlers()
+    {
+        var comment = new AgentCommentAdded(Guid.NewGuid(), DisputeTestData.Customer, "DSP-1", Guid.NewGuid(), DisputeTestData.Now);
+        var message = new OutboxMessage(Guid.NewGuid(), nameof(AgentCommentAdded), JsonSerializer.Serialize(comment), DisputeTestData.Now);
+
+        await Processor.ProcessAsync(message, CancellationToken.None);
+
+        _commentHandler.Received.ShouldBe([(message.Id, comment)]);
+        _handler.Received.ShouldBeEmpty();
+        message.ProcessedAt.ShouldBe(DisputeTestData.Now);
+    }
+
+    [Fact]
+    public async Task A_status_change_message_does_not_reach_the_comment_handlers()
+    {
+        await Processor.ProcessAsync(Message(), CancellationToken.None);
+
+        _commentHandler.Received.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_message_of_an_unknown_type_is_recorded_as_a_failure_and_never_marked_processed()
+    {
+        var message = new OutboxMessage(Guid.NewGuid(), "SomethingElse", "{}", DisputeTestData.Now);
+
+        await Processor.ProcessAsync(message, CancellationToken.None);
+
+        message.ProcessedAt.ShouldBeNull();
+        message.Attempts.ShouldBe(1);
+        message.LastError!.ShouldContain("SomethingElse");
+        _handler.Received.ShouldBeEmpty();
+        _commentHandler.Received.ShouldBeEmpty();
     }
 
     [Theory]
@@ -203,6 +239,17 @@ public class OutboxProcessorTests
             return Task.CompletedTask;
         }
     }
+
+    private sealed class RecordingCommentHandler : IAgentCommentAddedHandler
+    {
+        public List<(Guid MessageId, AgentCommentAdded Message)> Received { get; } = [];
+
+        public Task HandleAsync(Guid messageId, AgentCommentAdded message, CancellationToken cancellationToken)
+        {
+            Received.Add((messageId, message));
+            return Task.CompletedTask;
+        }
+    }
 }
 
 public class DisputeQueriesTests
@@ -217,7 +264,7 @@ public class DisputeQueriesTests
     {
         var pending = DisputeTestData.Submitted();
         var completed = DisputeTestData.Submitted();
-        completed.MarkSentToScheme("{}", DisputeTestData.Now);
+        completed.MarkSentToScheme("{}", DisputeActor.System, DisputeTestData.Now);
         completed.MarkRefunded(DisputeTestData.Now);
         _repository.Disputes.AddRange([pending, completed]);
 
@@ -233,7 +280,7 @@ public class DisputeQueriesTests
     public async Task Detail_returns_the_timeline_in_order_and_hides_other_customers_disputes()
     {
         var dispute = DisputeTestData.Submitted();
-        dispute.MarkSentToScheme("{}", DisputeTestData.Now.AddSeconds(10));
+        dispute.MarkSentToScheme("{}", DisputeActor.System, DisputeTestData.Now.AddSeconds(10));
         _repository.Disputes.Add(dispute);
 
         var mine = await Queries.GetAsync(DisputeTestData.Customer, dispute.Id, CancellationToken.None);

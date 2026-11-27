@@ -10,6 +10,7 @@ internal interface IDisputeRepository
 
     Task<Dispute?> FindAsync(Guid disputeId, Guid customerId, CancellationToken cancellationToken);
 
+    /// <summary>Whether the transaction already has a dispute. A withdrawn dispute does not count, so the transaction can be disputed again.</summary>
     Task<bool> ExistsForTransactionAsync(Guid transactionId, CancellationToken cancellationToken);
 
     /// <summary>

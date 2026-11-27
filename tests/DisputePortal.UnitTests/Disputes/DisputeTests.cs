@@ -11,6 +11,7 @@ internal static class DisputeTestData
     public const string Eft = "Eft";
 
     public static readonly Guid Customer = Guid.Parse("00000000-0000-4000-8000-0000000000aa");
+    public static readonly Guid Agent = Guid.Parse("00000000-0000-4000-8000-0000000000bb");
     public static readonly DateTimeOffset Now = new(2026, 11, 22, 8, 0, 0, TimeSpan.Zero);
 
     public static DisputedTransaction DebitOrder(string mandateType = Registered, string transactionId = "ACME20261101000001") => new(
@@ -30,8 +31,16 @@ internal static class DisputeTestData
     public static Dispute Submitted(string reasonId = "not_authorised", string mandateType = Registered, string transactionId = "ACME20261101000001") =>
         Submitted(DebitOrder(mandateType, transactionId), reasonId);
 
-    public static Dispute Submitted(DisputedTransaction transaction, string reasonId = "not_authorised") =>
-        Dispute.Submit(Guid.NewGuid(), "DSP-20261122-ABC234", Customer, transaction, reasonId, Now);
+    public static Dispute Submitted(DisputedTransaction transaction, string reasonId = "not_authorised", string? comment = null) =>
+        Dispute.Submit(Guid.NewGuid(), "DSP-20261122-ABC234", Customer, transaction, reasonId, comment, Now);
+
+    /// <summary>A dispute an agent approved, so it is with the scheme.</summary>
+    public static Dispute SentToScheme()
+    {
+        var dispute = Submitted();
+        dispute.MarkSentToScheme("{}", DisputeActor.Agent(Agent), Now);
+        return dispute;
+    }
 }
 
 public class DisputeLifecycleTests
@@ -83,7 +92,7 @@ public class DisputeLifecycleTests
     {
         var dispute = DisputeTestData.Submitted();
 
-        dispute.MarkSentToScheme("{}", DisputeTestData.Now.AddSeconds(10));
+        dispute.MarkSentToScheme("{}", DisputeActor.System, DisputeTestData.Now.AddSeconds(10));
         dispute.MarkRefunded(DisputeTestData.Now.AddSeconds(30));
 
         dispute.Status.ShouldBe(DisputeStatus.Refunded);
@@ -98,7 +107,7 @@ public class DisputeLifecycleTests
     public void A_dispute_can_be_declined_with_the_reason_given_by_the_scheme()
     {
         var dispute = DisputeTestData.Submitted();
-        dispute.MarkSentToScheme("{}", DisputeTestData.Now);
+        dispute.MarkSentToScheme("{}", DisputeActor.System, DisputeTestData.Now);
 
         dispute.MarkDeclined("Already reversed.", DisputeTestData.Now.AddSeconds(20));
 
@@ -120,16 +129,16 @@ public class DisputeLifecycleTests
     public void A_dispute_cannot_be_sent_to_the_scheme_twice()
     {
         var dispute = DisputeTestData.Submitted();
-        dispute.MarkSentToScheme("{}", DisputeTestData.Now);
+        dispute.MarkSentToScheme("{}", DisputeActor.System, DisputeTestData.Now);
 
-        Should.Throw<DisputeRuleException>(() => dispute.MarkSentToScheme("{}", DisputeTestData.Now));
+        Should.Throw<DisputeRuleException>(() => dispute.MarkSentToScheme("{}", DisputeActor.System, DisputeTestData.Now));
     }
 
     [Fact]
     public void A_completed_dispute_cannot_change_again()
     {
         var dispute = DisputeTestData.Submitted();
-        dispute.MarkSentToScheme("{}", DisputeTestData.Now);
+        dispute.MarkSentToScheme("{}", DisputeActor.System, DisputeTestData.Now);
         dispute.MarkRefunded(DisputeTestData.Now);
 
         Should.Throw<DisputeRuleException>(() => dispute.MarkDeclined("No.", DisputeTestData.Now));
@@ -162,10 +171,10 @@ public class DisputeLifecycleTests
     public void Every_status_change_raises_a_domain_event_for_the_outbox()
     {
         var dispute = DisputeTestData.Submitted();
-        dispute.MarkSentToScheme("{}", DisputeTestData.Now);
+        dispute.MarkSentToScheme("{}", DisputeActor.System, DisputeTestData.Now);
         dispute.MarkRefunded(DisputeTestData.Now);
 
-        dispute.DomainEvents.Select(e => e.Status).ShouldBe([DisputeStatus.Submitted, DisputeStatus.SentToScheme, DisputeStatus.Refunded]);
+        dispute.DomainEvents.OfType<DisputeStatusChangedDomainEvent>().Select(e => e.Status).ShouldBe([DisputeStatus.Submitted, DisputeStatus.SentToScheme, DisputeStatus.Refunded]);
 
         dispute.ClearDomainEvents();
         dispute.DomainEvents.ShouldBeEmpty();

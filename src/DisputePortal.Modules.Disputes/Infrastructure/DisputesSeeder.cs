@@ -25,7 +25,7 @@ internal sealed class DisputesSeeder(DisputesDbContext db, ITransactionDirectory
         if (refunded is not null)
         {
             var sentAt = now.AddDays(-9).AddMinutes(2);
-            refunded.MarkSentToScheme(ReturnMessageFactory.Create(refunded, sentAt), sentAt);
+            refunded.MarkSentToScheme(ReturnMessageFactory.Create(refunded, sentAt), DisputeActor.System, sentAt);
             refunded.MarkRefunded(sentAt.AddMinutes(3));
         }
 
@@ -49,6 +49,7 @@ internal sealed class DisputesSeeder(DisputesDbContext db, ITransactionDirectory
             DemoData.Thandi,
             DisputeMapper.ToDisputedTransaction(transaction),
             reasonId,
+            comment: null,
             submittedAt);
 
         db.Disputes.Add(dispute);

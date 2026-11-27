@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace DisputePortal.Modules.Disputes.Application;
 
-/// <summary>How the customer thinks about a dispute: still in progress, or finished.</summary>
+/// <summary>How the customer thinks about a dispute: still in progress, or finished (refunded, declined or withdrawn).</summary>
 internal enum DisputeState
 {
     Pending,
@@ -17,7 +17,8 @@ internal sealed record SubmitDisputeRequest(Guid TransactionId, string ReasonId)
 /// <summary>A reason the customer may choose for one transaction. The code is the scheme's code for that transaction.</summary>
 internal sealed record DisputeReasonDto(string Id, string Label, string Code);
 
-internal sealed record DisputeEventDto(DisputeStatus Status, string Description, DateTimeOffset OccurredAt);
+/// <param name="Actor">Who caused the event. The customer is told that an agent acted, never which agent.</param>
+internal sealed record DisputeEventDto(DisputeStatus Status, string Description, DisputeActorType Actor, DateTimeOffset OccurredAt);
 
 internal sealed record DisputeSummaryDto(
     Guid Id,
@@ -116,7 +117,7 @@ internal static class DisputeMapper
         dispute.OutcomeNote,
         dispute.Events
             .OrderBy(e => e.OccurredAt)
-            .Select(e => new DisputeEventDto(e.Status, e.Description, e.OccurredAt))
+            .Select(e => new DisputeEventDto(e.Status, e.Description, e.ActorType, e.OccurredAt))
             .ToList());
 
     /// <summary>Copies what a dispute needs from the Transactions module's contract into this module's own model.</summary>
