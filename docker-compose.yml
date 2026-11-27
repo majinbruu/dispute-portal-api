@@ -58,8 +58,9 @@ services:
     restart: unless-stopped
 
   api:
-    # IMAGE_TAG pins both images to one commit SHA. The default is the latest build of main.
-    image: ghcr.io/majinbruu/dispute-portal-api:${IMAGE_TAG:-latest}
+    # CI tags each image "latest" and with the commit SHA of its own repository, so the API and the web app
+    # are pinned separately: API_IMAGE_TAG takes a commit of this repository, WEB_IMAGE_TAG one of the web repository.
+    image: ghcr.io/majinbruu/dispute-portal-api:${API_IMAGE_TAG:-latest}
     environment:
       ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=dispute_portal;Username=dispute_portal;Password=${POSTGRES_PASSWORD:-local-dev-only}
       Auth__Authority: http://localhost:${KEYCLOAK_PORT:-8080}/realms/acme-bank
@@ -83,7 +84,7 @@ services:
     restart: unless-stopped
 
   web:
-    image: ghcr.io/majinbruu/dispute-portal-web:${IMAGE_TAG:-latest}
+    image: ghcr.io/majinbruu/dispute-portal-web:${WEB_IMAGE_TAG:-latest}
     environment:
       OIDC_AUTHORITY: http://localhost:${KEYCLOAK_PORT:-8080}/realms/acme-bank
       OIDC_ORIGIN: http://localhost:${KEYCLOAK_PORT:-8080}
