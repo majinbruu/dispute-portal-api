@@ -2,6 +2,8 @@ using DisputePortal.Modules.Disputes.Contracts;
 using DisputePortal.Modules.Disputes.Domain;
 using DisputePortal.Modules.Transactions.Contracts;
 using DisputePortal.Modules.Transactions.Domain;
+using DisputePortal.SharedKernel;
+using Prometheus;
 
 namespace DisputePortal.UnitTests.Disputes;
 
@@ -21,6 +23,24 @@ public class ContractValueTests
         TransactionValues.Recurring.ShouldBe(nameof(CardEntryMode.Recurring));
         TransactionValues.Pin.ShouldBe(nameof(CardholderVerification.Pin));
         TransactionValues.ThreeDSecure.ShouldBe(nameof(CardholderVerification.ThreeDSecure));
+    }
+
+    [Fact]
+    public void The_counters_published_at_start_up_carry_the_label_values_the_dispute_code_records()
+    {
+        // A series for a label value nobody published at 0 would appear with its first event, and increase() would miss that event.
+        const string agent = nameof(DisputeActorType.Agent);
+
+        PortalMetrics.PublishInitialValues();
+
+        LabelsOf(PortalMetrics.DisputesReviewed).ShouldBe(
+            [$"Approved,{agent}", $"Approved,{nameof(DisputeActorType.System)}", $"Rejected,{agent}"], ignoreOrder: true);
+        LabelsOf(PortalMetrics.DisputesCompleted).ShouldBe(
+            [nameof(DisputeStatus.Refunded), nameof(DisputeStatus.Declined)], ignoreOrder: true);
+        LabelsOf(PortalMetrics.DisputeCommentsAdded).ShouldBe(
+            [nameof(DisputeActorType.Customer), agent], ignoreOrder: true);
+
+        static IEnumerable<string> LabelsOf(Counter counter) => counter.GetAllLabelValues().Select(values => string.Join(',', values));
     }
 
     [Fact]

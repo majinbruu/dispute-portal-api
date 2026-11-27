@@ -4,6 +4,7 @@ using DisputePortal.Api.Hosting;
 using DisputePortal.Modules.Disputes;
 using DisputePortal.Modules.Notifications;
 using DisputePortal.Modules.Transactions;
+using DisputePortal.SharedKernel;
 using DisputePortal.SharedKernel.Web;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.OpenApi;
@@ -80,16 +81,18 @@ builder.Services.AddHealthChecks()
     .AddDisputesHealthChecks()
     .AddNotificationsHealthChecks();
 
-// Business and runtime metrics are published from .NET meters. The Npgsql meter is left out because its labels
+// Runtime and ASP.NET Core metrics are published from .NET meters. The Npgsql meter is left out because its labels
 // carry the connection string (host, database and user name), and the runtime's internal diagnostics are noise.
+// The business counters do not come through here: see PortalMetrics.
 Metrics.ConfigureMeterAdapter(options => options.InstrumentFilterPredicate = instrument =>
     instrument.Meter.Name != "Npgsql" &&
     !instrument.Meter.Name.StartsWith("Private.InternalDiagnostics", StringComparison.Ordinal));
 
 var app = builder.Build();
 
-// The meter listener starts on the first collection. Collect once now so measurements made during
-// start-up, before the first scrape, are not lost.
+// The business counters exist at 0 from here on. The meter listener starts on the first collection, so collect
+// once now and measurements made before the first scrape are not lost.
+PortalMetrics.PublishInitialValues();
 await Metrics.DefaultRegistry.CollectAndExportAsTextAsync(Stream.Null);
 
 // Schema migrations run at start-up only where configured (Docker Compose). In Kubernetes a Job runs

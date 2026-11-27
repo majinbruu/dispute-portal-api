@@ -274,16 +274,16 @@ internal sealed class OutboxProcessor(
     {
         if (message.ProcessedAt is not null)
         {
-            PortalMetrics.OutboxMessagesDispatched.Add(1);
+            PortalMetrics.OutboxMessagesDispatched.Inc();
             return;
         }
 
-        PortalMetrics.OutboxMessagesFailed.Add(1);
+        PortalMetrics.OutboxMessagesFailed.Inc();
 
         if (message.IsAbandoned)
         {
             // Nothing retries this message again. The counter drives the alert in deploy/monitoring.
-            PortalMetrics.OutboxMessagesAbandoned.Add(1);
+            PortalMetrics.OutboxMessagesAbandoned.Inc();
             logger.LogCritical(
                 "Outbox message {MessageId} of type {MessageType} was abandoned after {Attempts} attempts and needs manual attention",
                 message.Id, message.Type, message.Attempts);

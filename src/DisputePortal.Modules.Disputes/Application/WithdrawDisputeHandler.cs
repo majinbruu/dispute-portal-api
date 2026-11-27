@@ -32,7 +32,7 @@ internal sealed class WithdrawDisputeHandler(IDisputeRepository disputes, TimePr
             return DisputeErrors.NotWithdrawable;
         }
 
-        PortalMetrics.DisputesWithdrawn.Add(1);
+        PortalMetrics.DisputesWithdrawn.Inc();
         return Result<Dispute>.Success(dispute);
     }
 }

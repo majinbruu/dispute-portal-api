@@ -64,7 +64,7 @@ internal sealed class SubmitDisputeHandler(ITransactionDirectory transactions, I
             return await FindReplayAsync(command, requestHash, cancellationToken) ?? DisputeErrors.AlreadyDisputed;
         }
 
-        PortalMetrics.DisputesSubmitted.Add(1);
+        PortalMetrics.DisputesSubmitted.Inc();
         return Result<SubmitDisputeOutcome>.Success(new SubmitDisputeOutcome(dispute, Replayed: false));
     }
 

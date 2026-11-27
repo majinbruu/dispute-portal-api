@@ -50,7 +50,7 @@ internal sealed class AddCommentHandler(IDisputeRepository disputes, TimeProvide
             return DisputeErrors.Closed;
         }
 
-        PortalMetrics.DisputeCommentsAdded.Add(1, new KeyValuePair<string, object?>("author", author.Type.ToString()));
+        PortalMetrics.DisputeCommentsAdded.WithLabels(author.Type.ToString()).Inc();
         return Result<Dispute>.Success(dispute);
     }
 }

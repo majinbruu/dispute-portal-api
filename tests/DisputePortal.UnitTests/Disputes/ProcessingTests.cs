@@ -1,4 +1,3 @@
-using System.Diagnostics.Metrics;
 using System.Text.Json;
 using DisputePortal.Modules.Disputes.Application;
 using DisputePortal.Modules.Disputes.Contracts;
@@ -8,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
+using Prometheus;
 
 namespace DisputePortal.UnitTests.Disputes;
 
@@ -112,7 +112,7 @@ public class OutboxProcessorTests
     public async Task Delivering_counts_nothing_until_the_result_is_committed()
     {
         // The dispatcher saves the results of a whole batch in one transaction. Until it commits, nothing has happened.
-        using var counts = new OutboxCounts();
+        var counts = new OutboxCounts();
         var delivered = Message();
         var failed = new OutboxMessage(Guid.NewGuid(), "SomethingElse", "{}", DisputeTestData.Now);
 
@@ -132,7 +132,7 @@ public class OutboxProcessorTests
     [Fact]
     public async Task An_abandoned_message_is_counted_and_reported_as_critical_only_once_it_is_committed()
     {
-        using var counts = new OutboxCounts();
+        var counts = new OutboxCounts();
         _handler.Failure = new InvalidOperationException("inbox unavailable");
         var message = Message();
 
@@ -390,53 +390,19 @@ public class DisputeQueriesTests
 }
 
 /// <summary>
-/// What is recorded on the three outbox counters while a test runs. The counters are static, so this only holds
-/// because no other unit test records on them.
+/// How far the three outbox counters rose since a test started. The counters live as long as the process,
+/// so this only holds because no other unit test records on them.
 /// </summary>
-internal sealed class OutboxCounts : IDisposable
+internal sealed class OutboxCounts
 {
-    private readonly Dictionary<string, long> _totals = [];
-    private readonly MeterListener _listener = new();
-
-    public OutboxCounts()
+    private readonly Dictionary<Counter, double> _atStart = new[]
     {
-        _listener.InstrumentPublished = (instrument, listener) =>
-        {
-            if (instrument.Meter.Name == PortalMetrics.MeterName && instrument.Name.StartsWith("outbox_", StringComparison.Ordinal))
-            {
-                listener.EnableMeasurementEvents(instrument);
-            }
-        };
-        _listener.SetMeasurementEventCallback<long>((instrument, measurement, _, _) =>
-        {
-            lock (_totals)
-            {
-                _totals[instrument.Name] = _totals.GetValueOrDefault(instrument.Name) + measurement;
-            }
-        });
-        _listener.Start();
-    }
+        PortalMetrics.OutboxMessagesDispatched, PortalMetrics.OutboxMessagesFailed, PortalMetrics.OutboxMessagesAbandoned,
+    }.ToDictionary(counter => counter, counter => counter.Value);
 
-    public long Total
-    {
-        get
-        {
-            lock (_totals)
-            {
-                return _totals.Values.Sum();
-            }
-        }
-    }
+    public double Total => _atStart.Keys.Sum(Of);
 
-    public long Of(Counter<long> counter)
-    {
-        lock (_totals)
-        {
-            return _totals.GetValueOrDefault(counter.Name);
-        }
-    }
-
-    public void Dispose() => _listener.Dispose();
+    public double Of(Counter counter) => counter.Value - _atStart[counter];
 }
 
 /// <summary>Remembers the level of each line the outbox processor logs.</summary>

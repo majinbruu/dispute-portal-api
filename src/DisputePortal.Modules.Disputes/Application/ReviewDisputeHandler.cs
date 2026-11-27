@@ -63,17 +63,11 @@ internal sealed class ReviewDisputeHandler(IDisputeRepository disputes, DisputeP
 /// <summary>Counts review decisions the same way wherever they are made: by an agent here, or by the worker's automatic approval.</summary>
 internal static class ReviewMetrics
 {
-    public static void Approved(DisputeActorType by) => PortalMetrics.DisputesReviewed.Add(
-        1,
-        new KeyValuePair<string, object?>("decision", "Approved"),
-        new KeyValuePair<string, object?>("by", by.ToString()));
+    public static void Approved(DisputeActorType by) => PortalMetrics.DisputesReviewed.WithLabels("Approved", by.ToString()).Inc();
 
     public static void Rejected()
     {
-        PortalMetrics.DisputesReviewed.Add(
-            1,
-            new KeyValuePair<string, object?>("decision", "Rejected"),
-            new KeyValuePair<string, object?>("by", nameof(DisputeActorType.Agent)));
-        PortalMetrics.DisputesCompleted.Add(1, new KeyValuePair<string, object?>("outcome", nameof(DisputeStatus.Declined)));
+        PortalMetrics.DisputesReviewed.WithLabels("Rejected", nameof(DisputeActorType.Agent)).Inc();
+        PortalMetrics.DisputesCompleted.WithLabels(nameof(DisputeStatus.Declined)).Inc();
     }
 }

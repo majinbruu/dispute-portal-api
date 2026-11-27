@@ -141,7 +141,7 @@ internal sealed class DisputeProcessorWorker(
             }
             else
             {
-                PortalMetrics.DisputesCompleted.Add(1, new KeyValuePair<string, object?>("outcome", dispute.Status.ToString()));
+                PortalMetrics.DisputesCompleted.WithLabels(dispute.Status.ToString()).Inc();
             }
 
             Logger.LogInformation("Dispute {Reference} moved to {Status}", dispute.Reference, dispute.Status);

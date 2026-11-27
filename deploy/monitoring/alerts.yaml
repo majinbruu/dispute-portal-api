@@ -7,7 +7,7 @@ groups:
       - alert: OutboxMessageAbandoned
         # A message is abandoned after its last retry and nothing picks it up again,
         # so a customer notification is missing until someone replays it.
-        expr: increase(disputeportal_outbox_abandoned[15m]) > 0
+        expr: increase(disputeportal_outbox_abandoned_total[15m]) > 0
         labels:
           severity: page
         annotations:
@@ -17,7 +17,7 @@ groups:
             WHERE processed_at IS NULL AND attempts >= 5. Fix the cause, then reset attempts to 0 to replay it.
 
       - alert: OutboxDeliveryFailing
-        expr: increase(disputeportal_outbox_failed[10m]) > 5
+        expr: increase(disputeportal_outbox_failed_total[10m]) > 5
         for: 10m
         labels:
           severity: warn

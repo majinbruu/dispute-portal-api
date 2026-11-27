@@ -19,11 +19,7 @@ public abstract class PortalTest(PortalFixture portal) : IAsyncLifetime
 
     public virtual Task InitializeAsync() => Portal.ResetAsync();
 
-    public Task DisposeAsync()
-    {
-        Metrics.Dispose();
-        return Task.CompletedTask;
-    }
+    public Task DisposeAsync() => Task.CompletedTask;
 
     /// <summary>Runs one cycle of the worker that approves automatically (when switched on) and applies the scheme's answers.</summary>
     private protected Task ProcessDisputesAsync(DisputeProcessingOptions? options = null, PortalApplication? application = null) =>
