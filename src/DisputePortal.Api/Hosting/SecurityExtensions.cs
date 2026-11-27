@@ -47,7 +47,10 @@ internal static class SecurityExtensions
 
         // Two separate audiences. A customer token is refused on the agent endpoints and an agent token on the
         // customer endpoints, each with a 403, because each policy requires its own realm role.
+        // Deny by default: anything that names no policy still needs a valid token, so an endpoint added without
+        // an attribute is closed, not open. What is meant to be public says so where it is mapped.
         services.AddAuthorizationBuilder()
+            .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
             .AddPolicy(ApiConventions.CustomerPolicy, policy => RequireRoleAndSubject(policy, ApiConventions.CustomerRole))
             .AddPolicy(ApiConventions.AgentPolicy, policy => RequireRoleAndSubject(policy, ApiConventions.AgentRole));
 

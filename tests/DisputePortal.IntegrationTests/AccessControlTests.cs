@@ -6,7 +6,11 @@ using DisputePortal.Modules.Notifications.Application;
 using DisputePortal.Modules.Transactions.Application;
 using DisputePortal.SharedKernel;
 using DisputePortal.SharedKernel.Web;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DisputePortal.IntegrationTests;
 
@@ -59,6 +63,54 @@ public class AccessControlTests(PortalFixture portal) : PortalTest(portal)
         var response = await Portal.Anonymous().GetAsync(path);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task An_endpoint_that_names_no_policy_still_needs_a_token()
+    {
+        // The application with one more controller, which has no authorisation attribute at all.
+        await using var application = Portal.App.WithWebHostBuilder(builder => builder.ConfigureTestServices(
+            services => services.AddControllers().AddApplicationPart(typeof(ForgottenPolicyController).Assembly)));
+
+        var anonymous = await application.CreateClient().GetAsync(ForgottenPolicyController.Path);
+        using var signedIn = application.CreateClient();
+        signedIn.DefaultRequestHeaders.Authorization = new("Bearer", Portal.Identity.TokenFor(DemoData.Thandi));
+
+        anonymous.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await signedIn.GetAsync(ForgottenPolicyController.Path)).StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task A_path_that_matches_nothing_does_not_tell_an_anonymous_caller_so()
+    {
+        var response = await Portal.Anonymous().GetAsync("/api/v1/no-such-thing");
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Theory]
+    [InlineData("/health/live")]
+    [InlineData("/health/ready")]
+    [InlineData("/metrics")]
+    public async Task Probes_and_the_metrics_scraper_need_no_token(string path)
+    {
+        var response = await Portal.Anonymous().GetAsync(path);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Theory]
+    [InlineData("/openapi/v1.json")]
+    [InlineData("/swagger/index.html")]
+    public async Task The_API_documentation_is_public_when_switched_on_and_absent_otherwise(string path)
+    {
+        await using var withDocs = Portal.App.WithWebHostBuilder(builder => builder.UseSetting("ApiDocs:Enabled", "true"));
+
+        var switchedOn = await withDocs.CreateClient().GetAsync(path);
+        var switchedOff = await Portal.Anonymous().GetAsync(path);
+
+        switchedOn.StatusCode.ShouldBe(HttpStatusCode.OK);
+        switchedOff.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
@@ -257,4 +309,15 @@ public class AccessControlTests(PortalFixture portal) : PortalTest(portal)
 
     private async Task<DisputeDetailDto> SiphoRaisesADisputeAsync() =>
         await (await Portal.Sipho().SubmitDisputeAsync(DemoData.SiphoPendingCardId, "not_received")).ReadAsync<DisputeDetailDto>(HttpStatusCode.Created);
+}
+
+/// <summary>What a controller looks like when its author forgets the policy. It is only added to the application by the test that needs it.</summary>
+[ApiController]
+[Route(Path)]
+internal sealed class ForgottenPolicyController : ControllerBase
+{
+    public const string Path = "/api/v1/forgotten-policy";
+
+    [HttpGet]
+    public IActionResult Get() => Ok();
 }

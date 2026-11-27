@@ -128,6 +128,20 @@ app.Use(async (context, next) =>
     await next(context);
 });
 
+// Off unless a deployment asks for it: the API surface is not advertised by default.
+var apiDocsEnabled = configuration.GetValue("ApiDocs:Enabled", false);
+if (apiDocsEnabled)
+{
+    // The Swagger page is static files served by middleware. It sits before authorisation, which would
+    // otherwise ask for a token: the page is public, and the calls made from it carry the token pasted into it.
+    app.UseSwaggerUI(options =>
+    {
+        options.RoutePrefix = "swagger";
+        options.SwaggerEndpoint("/openapi/v1.json", "ACME Bank Dispute Portal API v1");
+        options.DocumentTitle = "ACME Bank Dispute Portal API";
+    });
+}
+
 app.UseRouting();
 app.UseHttpMetrics();
 app.UseAuthentication();
@@ -137,20 +151,14 @@ app.UseRateLimiter();
 app.MapControllers();
 
 // Liveness says the process is up. Readiness says it can reach its database, so traffic is only routed when it can serve.
-app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
-app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") });
-app.MapMetrics();
+// Probes and the metrics scraper carry no token, so these are the endpoints that are public on purpose.
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") }).AllowAnonymous();
+app.MapMetrics().AllowAnonymous();
 
-// Off unless a deployment asks for it: the API surface is not advertised by default.
-if (configuration.GetValue("ApiDocs:Enabled", false))
+if (apiDocsEnabled)
 {
-    app.MapOpenApi();
-    app.UseSwaggerUI(options =>
-    {
-        options.RoutePrefix = "swagger";
-        options.SwaggerEndpoint("/openapi/v1.json", "ACME Bank Dispute Portal API v1");
-        options.DocumentTitle = "ACME Bank Dispute Portal API";
-    });
+    app.MapOpenApi().AllowAnonymous();
 }
 
 await app.RunAsync();
