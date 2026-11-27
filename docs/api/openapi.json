@@ -2,10 +2,381 @@
   "openapi": "3.1.1",
   "info": {
     "title": "ACME Bank Dispute Portal API",
-    "description": "Transactions (debit orders and card), mandates, disputes and notifications for the signed-in customer. All endpoints under /api require a Keycloak access token with the 'customer' role. Errors are RFC 9457 problem documents with a stable 'code' and a 'traceId'.",
+    "description": "Transactions (debit orders and card), mandates, disputes and notifications for the signed-in customer, and the dispute review queue for bank agents. All endpoints under /api require a Keycloak access token: with the 'agent' role under /api/v1/agent, and with the 'customer' role everywhere else. Errors are RFC 9457 problem documents with a stable 'code' and a 'traceId'.",
     "version": "v1"
   },
   "paths": {
+    "/api/v1/agent/disputes": {
+      "get": {
+        "tags": [
+          "Agent"
+        ],
+        "summary": "Lists disputes across all customers. By default the review queue: disputes waiting for review first, oldest first.",
+        "operationId": "ListDisputesForAgent",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/DisputeStatus"
+            }
+          },
+          {
+            "name": "transactionType",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/DisputedTransactionType"
+            }
+          },
+          {
+            "name": "reference",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfAgentDisputeSummaryDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfAgentDisputeSummaryDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfAgentDisputeSummaryDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent/disputes/{id}": {
+      "get": {
+        "tags": [
+          "Agent"
+        ],
+        "summary": "Returns one dispute with the disputed transaction and the audit trail of who did what.",
+        "operationId": "GetDisputeForAgent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDisputeDetailDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDisputeDetailDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDisputeDetailDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent/disputes/{id}/approve": {
+      "post": {
+        "tags": [
+          "Agent"
+        ],
+        "summary": "Approves a dispute that waits for review, which sends it for processing. Returns 409 if it was already reviewed or withdrawn.",
+        "operationId": "ApproveDispute",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDisputeDetailDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDisputeDetailDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDisputeDetailDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent/disputes/{id}/reject": {
+      "post": {
+        "tags": [
+          "Agent"
+        ],
+        "summary": "Rejects a dispute that waits for review. The reason is shown to the customer as the outcome. Returns 409 if it was already reviewed or withdrawn.",
+        "operationId": "RejectDispute",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectDisputeRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectDisputeRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectDisputeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDisputeDetailDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDisputeDetailDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDisputeDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/disputes": {
       "post": {
         "tags": [
@@ -1000,6 +1371,190 @@
   },
   "components": {
     "schemas": {
+      "AgentDisputeDetailDto": {
+        "required": [
+          "id",
+          "reference",
+          "customerId",
+          "transaction",
+          "reasonId",
+          "reasonCode",
+          "reasonLabel",
+          "status",
+          "submittedAt",
+          "sentToSchemeAt",
+          "completedAt",
+          "outcomeNote",
+          "events"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "customerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "transaction": {
+            "$ref": "#/components/schemas/DisputedTransactionDto"
+          },
+          "reasonId": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "reasonLabel": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DisputeStatus"
+          },
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sentToSchemeAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "outcomeNote": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentDisputeEventDto"
+            }
+          }
+        }
+      },
+      "AgentDisputeEventDto": {
+        "required": [
+          "status",
+          "description",
+          "actor",
+          "actorSubjectId",
+          "occurredAt"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/DisputeStatus"
+          },
+          "description": {
+            "type": "string"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/DisputeActorType"
+          },
+          "actorSubjectId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AgentDisputeSummaryDto": {
+        "required": [
+          "id",
+          "reference",
+          "customerId",
+          "transactionType",
+          "counterpartyName",
+          "amount",
+          "currency",
+          "transactionDate",
+          "reasonId",
+          "reasonCode",
+          "reasonLabel",
+          "status",
+          "submittedAt",
+          "completedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "customerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "transactionType": {
+            "$ref": "#/components/schemas/DisputedTransactionType"
+          },
+          "counterpartyName": {
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "transactionDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "reasonId": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "reasonLabel": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DisputeStatus"
+          },
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
       "CardDetailDto": {
         "required": [
           "cardNumberMasked",
@@ -1518,6 +2073,81 @@
           }
         }
       },
+      "DisputedTransactionDto": {
+        "required": [
+          "id",
+          "type",
+          "schemeReference",
+          "counterpartyName",
+          "amount",
+          "currency",
+          "transactionDate",
+          "postingDate",
+          "accountMasked",
+          "mandateType",
+          "mandateReference",
+          "cardScheme"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "$ref": "#/components/schemas/DisputedTransactionType"
+          },
+          "schemeReference": {
+            "type": "string"
+          },
+          "counterpartyName": {
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "transactionDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "postingDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "accountMasked": {
+            "type": "string"
+          },
+          "mandateType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "mandateReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "cardScheme": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "DisputedTransactionType": {
         "enum": [
           "DebitOrder",
@@ -1684,6 +2314,55 @@
           },
           "isRead": {
             "type": "boolean"
+          }
+        }
+      },
+      "PagedResultOfAgentDisputeSummaryDto": {
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "totalItems"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentDisputeSummaryDto"
+            }
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalItems": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalPages": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -1921,6 +2600,17 @@
           }
         }
       },
+      "RejectDisputeRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "SequenceType": {
         "enum": [
           "First",
@@ -2097,7 +2787,7 @@
     "securitySchemes": {
       "bearer": {
         "type": "http",
-        "description": "A Keycloak access token for a user with the 'customer' role.",
+        "description": "A Keycloak access token for a user with the 'customer' role, or the 'agent' role for the agent endpoints.",
         "scheme": "bearer",
         "bearerFormat": "JWT"
       }
@@ -2109,6 +2799,9 @@
     }
   ],
   "tags": [
+    {
+      "name": "Agent"
+    },
     {
       "name": "Disputes"
     },

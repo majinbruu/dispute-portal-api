@@ -13,6 +13,9 @@ public static class PortalMetrics
     public static readonly Counter<long> DisputesSubmitted =
         Meter.CreateCounter<long>("disputes_submitted", description: "Disputes submitted by customers.");
 
+    public static readonly Counter<long> DisputesReviewed =
+        Meter.CreateCounter<long>("disputes_reviewed", description: "Review decisions on submitted disputes, by decision (Approved or Rejected) and by who made it (Agent or System).");
+
     public static readonly Counter<long> DisputesCompleted =
         Meter.CreateCounter<long>("disputes_completed", description: "Disputes that reached an outcome.");
 

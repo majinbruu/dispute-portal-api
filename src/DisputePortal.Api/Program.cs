@@ -42,7 +42,7 @@ builder.Services.AddPortalControllers(
     typeof(DisputesModule).Assembly,
     typeof(NotificationsModule).Assembly);
 
-builder.Services.AddCustomerAuthentication(configuration);
+builder.Services.AddPortalAuthentication(configuration);
 builder.Services.AddPortalRateLimiting(configuration);
 
 builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document, _, _) =>
@@ -50,8 +50,9 @@ builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document,
     document.Info.Title = "ACME Bank Dispute Portal API";
     document.Info.Version = "v1";
     document.Info.Description =
-        "Transactions (debit orders and card), mandates, disputes and notifications for the signed-in customer. " +
-        "All endpoints under /api require a Keycloak access token with the 'customer' role. " +
+        "Transactions (debit orders and card), mandates, disputes and notifications for the signed-in customer, " +
+        "and the dispute review queue for bank agents. All endpoints under /api require a Keycloak access token: " +
+        "with the 'agent' role under /api/v1/agent, and with the 'customer' role everywhere else. " +
         "Errors are RFC 9457 problem documents with a stable 'code' and a 'traceId'.";
 
     // Declares bearer authentication, which gives the Swagger page an Authorize button for pasting an access token.
@@ -62,7 +63,7 @@ builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document,
         Type = SecuritySchemeType.Http,
         Scheme = "bearer",
         BearerFormat = "JWT",
-        Description = "A Keycloak access token for a user with the 'customer' role.",
+        Description = "A Keycloak access token for a user with the 'customer' role, or the 'agent' role for the agent endpoints.",
     };
     document.Security ??= [];
     document.Security.Add(new OpenApiSecurityRequirement { [new OpenApiSecuritySchemeReference("bearer", document)] = [] });

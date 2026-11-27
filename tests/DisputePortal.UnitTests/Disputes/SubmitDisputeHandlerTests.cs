@@ -264,6 +264,18 @@ internal sealed class InMemoryDisputeRepository : IDisputeRepository
     public Task<Dispute?> FindForChangeAsync(Guid disputeId, Guid customerId, CancellationToken cancellationToken) =>
         FindAsync(disputeId, customerId, cancellationToken);
 
+    public Task<Dispute?> FindForAgentAsync(Guid disputeId, CancellationToken cancellationToken) =>
+        Task.FromResult(Disputes.FirstOrDefault(d => d.Id == disputeId));
+
+    public Task<Dispute?> FindForChangeByAgentAsync(Guid disputeId, CancellationToken cancellationToken) =>
+        FindForAgentAsync(disputeId, cancellationToken);
+
+    public Task<PagedResult<Dispute>> ListForAgentAsync(AgentDisputeFilter filter, PageRequest page, CancellationToken cancellationToken)
+    {
+        var items = filter.Apply(Disputes.AsQueryable()).ToList();
+        return Task.FromResult(new PagedResult<Dispute>(items.Skip(page.Skip).Take(page.PageSize).ToList(), page.Page, page.PageSize, items.Count));
+    }
+
     public Task<bool> TrySaveAsync(CancellationToken cancellationToken)
     {
         if (FailNextSaveAsConflict)

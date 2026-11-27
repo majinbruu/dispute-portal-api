@@ -3,6 +3,7 @@ using System.Threading.RateLimiting;
 using DisputePortal.SharedKernel;
 using DisputePortal.SharedKernel.Web;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 
@@ -14,7 +15,7 @@ internal static class SecurityExtensions
     /// Validates Keycloak access tokens. The issuer the token carries is the public URL the browser used,
     /// while the API may reach Keycloak at an internal address, so the metadata address is configured separately.
     /// </summary>
-    public static IServiceCollection AddCustomerAuthentication(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddPortalAuthentication(this IServiceCollection services, IConfiguration configuration)
     {
         var auth = configuration.GetSection("Auth");
         var authority = auth["Authority"];
@@ -44,16 +45,22 @@ internal static class SecurityExtensions
             };
         });
 
-        services.AddAuthorizationBuilder().AddPolicy(ApiConventions.CustomerPolicy, policy => policy
-            .RequireAuthenticatedUser()
-            .RequireRole(ApiConventions.CustomerRole)
-            .RequireAssertion(context => HttpCurrentCustomer.TryGetCustomerId(
-                context.User.FindFirst(HttpCurrentCustomer.SubjectClaim)?.Value, out _)));
+        // Two separate audiences. A customer token is refused on the agent endpoints and an agent token on the
+        // customer endpoints, each with a 403, because each policy requires its own realm role.
+        services.AddAuthorizationBuilder()
+            .AddPolicy(ApiConventions.CustomerPolicy, policy => RequireRoleAndSubject(policy, ApiConventions.CustomerRole))
+            .AddPolicy(ApiConventions.AgentPolicy, policy => RequireRoleAndSubject(policy, ApiConventions.AgentRole));
 
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentCustomer, HttpCurrentCustomer>();
+        services.AddScoped<ICurrentAgent, HttpCurrentAgent>();
         return services;
     }
+
+    private static void RequireRoleAndSubject(AuthorizationPolicyBuilder policy, string role) => policy
+        .RequireAuthenticatedUser()
+        .RequireRole(role)
+        .RequireAssertion(context => TokenSubject.TryRead(context.User, out _));
 
     /// <summary>
     /// A general limit per caller, and a tight limit on raising disputes. Limits are held in memory per instance;
@@ -115,9 +122,9 @@ internal static class SecurityExtensions
     private static bool IsInfrastructurePath(PathString path) =>
         path.StartsWithSegments("/health") || path.StartsWithSegments("/metrics");
 
-    /// <summary>Limits follow the customer when signed in, so customers behind one address do not share a budget.</summary>
+    /// <summary>Limits follow the signed-in customer or agent, so users behind one address do not share a budget.</summary>
     private static string PartitionKey(HttpContext context) =>
-        context.User.FindFirst(HttpCurrentCustomer.SubjectClaim)?.Value
+        context.User.FindFirst(TokenSubject.Claim)?.Value
         ?? context.Connection.RemoteIpAddress?.ToString()
         ?? "anonymous";
 }

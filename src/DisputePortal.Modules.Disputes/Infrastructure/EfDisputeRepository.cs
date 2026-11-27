@@ -23,6 +23,27 @@ internal sealed class EfDisputeRepository(DisputesDbContext db) : IDisputeReposi
             .Include(d => d.Comments)
             .FirstOrDefaultAsync(d => d.Id == disputeId && d.CustomerId == customerId, cancellationToken);
 
+    public Task<Dispute?> FindForAgentAsync(Guid disputeId, CancellationToken cancellationToken) =>
+        db.Disputes.AsNoTracking()
+            .Include(d => d.Events)
+            .Include(d => d.Comments)
+            .FirstOrDefaultAsync(d => d.Id == disputeId, cancellationToken);
+
+    public Task<Dispute?> FindForChangeByAgentAsync(Guid disputeId, CancellationToken cancellationToken) =>
+        db.Disputes
+            .Include(d => d.Events)
+            .Include(d => d.Comments)
+            .FirstOrDefaultAsync(d => d.Id == disputeId, cancellationToken);
+
+    public async Task<PagedResult<Dispute>> ListForAgentAsync(AgentDisputeFilter filter, PageRequest page, CancellationToken cancellationToken)
+    {
+        var query = filter.Apply(db.Disputes.AsNoTracking());
+
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query.Skip(page.Skip).Take(page.PageSize).ToListAsync(cancellationToken);
+        return new PagedResult<Dispute>(items, page.Page, page.PageSize, total);
+    }
+
     public async Task<bool> TrySaveAsync(CancellationToken cancellationToken)
     {
         try

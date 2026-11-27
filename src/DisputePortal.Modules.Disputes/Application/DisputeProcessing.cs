@@ -19,8 +19,11 @@ internal sealed class DisputeProcessingOptions
 
     public int PollIntervalSeconds { get; set; } = 2;
 
-    /// <summary>How long a dispute waits before it is sent to the scheme.</summary>
-    public int SendDelaySeconds { get; set; } = 10;
+    /// <summary>
+    /// Approves a submitted dispute automatically once it has waited this long, without an agent.
+    /// 0 switches this off, which is the default: a dispute waits until an agent approves or rejects it.
+    /// </summary>
+    public int AutoApproveAfterSeconds { get; set; }
 
     /// <summary>How long the scheme "takes" to answer.</summary>
     public int OutcomeDelaySeconds { get; set; } = 20;
@@ -29,6 +32,10 @@ internal sealed class DisputeProcessingOptions
 
     /// <summary>How long an idempotency key is kept. A client retry is only expected within minutes of the first attempt.</summary>
     public int IdempotencyKeyRetentionHours { get; set; } = 24;
+
+    /// <summary>Disputes submitted at or before this moment are approved automatically. Null when automatic approval is off.</summary>
+    public DateTimeOffset? AutoApproveCutoff(DateTimeOffset now) =>
+        AutoApproveAfterSeconds > 0 ? now.AddSeconds(-AutoApproveAfterSeconds) : null;
 }
 
 internal sealed class SchemeSimulatorOptions
@@ -62,7 +69,7 @@ internal sealed class SimulatedSchemeGateway(IOptions<SchemeSimulatorOptions> op
     }
 }
 
-/// <summary>Moves disputes through their lifecycle. Pure logic: the worker supplies locked disputes and saves the result.</summary>
+/// <summary>Sends approved disputes to the scheme and applies the scheme's answer. Pure logic: the caller loads the dispute and saves the result.</summary>
 internal sealed class DisputeProcessingService(ISchemeGateway scheme, TimeProvider timeProvider)
 {
     /// <param name="approvedBy">The agent who approved the dispute, or the system when it was approved automatically.</param>

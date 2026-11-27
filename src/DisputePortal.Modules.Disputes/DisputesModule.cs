@@ -24,13 +24,17 @@ public static class DisputesModule
         services.AddScoped<IDisputeStatusProvider, DisputeStatusProvider>();
         services.AddScoped<SubmitDisputeHandler>();
         services.AddScoped<WithdrawDisputeHandler>();
+        services.AddScoped<ReviewDisputeHandler>();
         services.AddScoped<DisputeQueries>();
+        services.AddScoped<AgentDisputeQueries>();
         services.AddScoped<DisputeProcessingService>();
         services.AddScoped<OutboxProcessor>();
         services.AddScoped<DisputesSeeder>();
         services.AddSingleton<ISchemeGateway, SimulatedSchemeGateway>();
         services.AddScoped<IValidator<SubmitDisputeRequest>, SubmitDisputeRequestValidator>();
         services.AddScoped<IValidator<DisputeListQuery>, DisputeListQueryValidator>();
+        services.AddScoped<IValidator<AgentDisputeListQuery>, AgentDisputeListQueryValidator>();
+        services.AddScoped<IValidator<RejectDisputeRequest>, RejectDisputeRequestValidator>();
 
         // The same image runs as an API pod (workers off) or a worker pod (workers on).
         if (configuration.GetSection(DisputeProcessingOptions.Section).GetValue("Enabled", true))

@@ -101,6 +101,9 @@ internal static class DisputeErrors
     public static readonly Error NotWithdrawable = Error.Conflict(
         "dispute_not_withdrawable", "This dispute can no longer be withdrawn because it has already been reviewed.");
 
+    public static readonly Error NotAwaitingReview = Error.Conflict(
+        "dispute_not_awaiting_review", "This dispute is no longer waiting for review. It was already approved, rejected or withdrawn.");
+
     public static readonly Error IdempotencyKeyReused = Error.Conflict(
         "idempotency_key_reused", "This Idempotency-Key was already used for a different request.");
 

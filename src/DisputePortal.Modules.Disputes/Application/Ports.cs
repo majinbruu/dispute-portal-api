@@ -3,7 +3,10 @@ using DisputePortal.SharedKernel;
 
 namespace DisputePortal.Modules.Disputes.Application;
 
-/// <summary>Persistence port for disputes. Reads that return customer data are always scoped to a customer.</summary>
+/// <summary>
+/// Persistence port for disputes. What a customer reads or changes is always scoped to that customer.
+/// The methods for agents say so in their names and reach across customers.
+/// </summary>
 internal interface IDisputeRepository
 {
     Task<IdempotencyRecord?> FindIdempotencyRecordAsync(Guid customerId, string key, CancellationToken cancellationToken);
@@ -12,6 +15,14 @@ internal interface IDisputeRepository
 
     /// <summary>Loads one of the customer's disputes in order to change it. Follow it with <see cref="TrySaveAsync"/>.</summary>
     Task<Dispute?> FindForChangeAsync(Guid disputeId, Guid customerId, CancellationToken cancellationToken);
+
+    /// <summary>Loads any customer's dispute for an agent to read.</summary>
+    Task<Dispute?> FindForAgentAsync(Guid disputeId, CancellationToken cancellationToken);
+
+    /// <summary>Loads any customer's dispute for an agent to change. Follow it with <see cref="TrySaveAsync"/>.</summary>
+    Task<Dispute?> FindForChangeByAgentAsync(Guid disputeId, CancellationToken cancellationToken);
+
+    Task<PagedResult<Dispute>> ListForAgentAsync(AgentDisputeFilter filter, PageRequest page, CancellationToken cancellationToken);
 
     /// <summary>
     /// Saves the changes made to a loaded dispute, with its events, comments and outbox messages, in one transaction.

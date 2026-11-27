@@ -58,7 +58,11 @@ internal abstract class PollingWorker(IServiceScopeFactory scopeFactory, IOption
     }
 }
 
-/// <summary>The simulated back office: sends submitted disputes to the scheme, then applies the scheme's answer.</summary>
+/// <summary>
+/// The simulated scheme: applies the scheme's answer to disputes that were sent for processing. A submitted dispute
+/// waits for an agent. Only when automatic approval is switched on does this worker also approve disputes that
+/// have waited long enough, which lets the demo run end to end without an agent.
+/// </summary>
 internal sealed class DisputeProcessorWorker(
     IServiceScopeFactory scopeFactory,
     IOptions<DisputeProcessingOptions> options,
@@ -74,14 +78,19 @@ internal sealed class DisputeProcessorWorker(
 
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
-        var submittedBefore = now.AddSeconds(-Options.SendDelaySeconds);
-        var toSend = await db.Database.SqlQuery<Guid>($"""
-            SELECT id AS "Value" FROM disputes.disputes
-            WHERE status = 'Submitted' AND submitted_at <= {submittedBefore}
-            ORDER BY submitted_at
-            LIMIT {Options.BatchSize}
-            FOR UPDATE SKIP LOCKED
-            """).ToListAsync(cancellationToken);
+        // The row lock makes a customer's withdrawal or an agent's decision on the same dispute wait for this
+        // transaction. Its save then finds a newer row version and fails, so the automatic approval stands.
+        List<Guid> toApprove = [];
+        if (Options.AutoApproveCutoff(now) is { } submittedBefore)
+        {
+            toApprove = await db.Database.SqlQuery<Guid>($"""
+                SELECT id AS "Value" FROM disputes.disputes
+                WHERE status = 'Submitted' AND submitted_at <= {submittedBefore}
+                ORDER BY submitted_at
+                LIMIT {Options.BatchSize}
+                FOR UPDATE SKIP LOCKED
+                """).ToListAsync(cancellationToken);
+        }
 
         var sentBefore = now.AddSeconds(-Options.OutcomeDelaySeconds);
         var toComplete = await db.Database.SqlQuery<Guid>($"""
@@ -92,12 +101,12 @@ internal sealed class DisputeProcessorWorker(
             FOR UPDATE SKIP LOCKED
             """).ToListAsync(cancellationToken);
 
-        if (toSend.Count == 0 && toComplete.Count == 0)
+        if (toApprove.Count == 0 && toComplete.Count == 0)
         {
             return;
         }
 
-        var claimed = toSend.Concat(toComplete).ToList();
+        var claimed = toApprove.Concat(toComplete).ToList();
         var disputes = await db.Disputes.Include(d => d.Events).Where(d => claimed.Contains(d.Id)).ToListAsync(cancellationToken);
 
         foreach (var dispute in disputes)
@@ -105,6 +114,7 @@ internal sealed class DisputeProcessorWorker(
             if (dispute.Status == DisputeStatus.Submitted)
             {
                 processing.SendToScheme(dispute, DisputeActor.System);
+                ReviewMetrics.Approved(DisputeActorType.System);
             }
             else
             {

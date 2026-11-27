@@ -2,6 +2,10 @@ using System.Reflection;
 using DisputePortal.Modules.Disputes;
 using DisputePortal.Modules.Notifications;
 using DisputePortal.Modules.Transactions;
+using DisputePortal.SharedKernel;
+using DisputePortal.SharedKernel.Web;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using NetArchTest.Rules;
 
 namespace DisputePortal.ArchitectureTests;
@@ -91,6 +95,47 @@ public class ModuleBoundaryTests
 
         AssertPasses(result);
     }
+
+    /// <summary>
+    /// Customers and agents are separate audiences. A controller that forgot its policy, or an agent endpoint
+    /// placed under the customer policy, would open data to the wrong audience.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Modules))]
+    public void Every_controller_requires_the_policy_of_its_audience(string module)
+    {
+        foreach (var controller in ControllersOf(module))
+        {
+            var route = controller.GetCustomAttribute<RouteAttribute>()?.Template;
+            var policy = controller.GetCustomAttribute<AuthorizeAttribute>()?.Policy;
+
+            route.ShouldNotBeNull($"{controller.Name} has no route.");
+            route.ShouldStartWith("api/v1/");
+            policy.ShouldBe(
+                IsForAgents(route) ? ApiConventions.AgentPolicy : ApiConventions.CustomerPolicy,
+                $"{controller.Name} at '{route}' has the wrong policy.");
+            controller.GetMethods().ShouldAllBe(action => action.GetCustomAttribute<AllowAnonymousAttribute>() == null);
+        }
+    }
+
+    /// <summary>An agent has no customer ID and a customer has no agent ID, so asking for the wrong one is always a mistake.</summary>
+    [Theory]
+    [MemberData(nameof(Modules))]
+    public void A_controller_only_asks_for_the_identity_of_its_own_audience(string module)
+    {
+        foreach (var controller in ControllersOf(module))
+        {
+            var forAgents = IsForAgents(controller.GetCustomAttribute<RouteAttribute>()!.Template);
+            var injected = controller.GetConstructors().Single().GetParameters().Select(p => p.ParameterType).ToList();
+
+            injected.ShouldNotContain(forAgents ? typeof(ICurrentCustomer) : typeof(ICurrentAgent), $"{controller.Name} asks for the wrong identity.");
+        }
+    }
+
+    private static IEnumerable<Type> ControllersOf(string module) =>
+        AssemblyOf(module).GetTypes().Where(type => type is { IsClass: true, IsAbstract: false } && typeof(ControllerBase).IsAssignableFrom(type));
+
+    private static bool IsForAgents(string route) => route.StartsWith("api/v1/agent/", StringComparison.Ordinal);
 
     private static Assembly AssemblyOf(string module) => module switch
     {
