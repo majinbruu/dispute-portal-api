@@ -9,3 +9,4 @@ docs
 *.md
 .env
 docker-compose*.yml
+.env.prod
