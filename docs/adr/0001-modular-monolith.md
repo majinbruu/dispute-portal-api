@@ -4,7 +4,7 @@ Status: accepted
 
 ## Context
 
-The system covers one bounded area, debit order disputes, with three closely related parts: debit orders and mandates, disputes, and notifications. It must run on Kubernetes and scale horizontally. It is built and reviewed by one person.
+The system covers one bounded area, disputes of debit orders and card transactions, with three closely related parts: transactions and mandates, disputes, and notifications. It must run on Kubernetes and scale horizontally. It is built and reviewed by one person.
 
 ## Decision
 
