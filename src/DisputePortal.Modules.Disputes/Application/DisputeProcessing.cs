@@ -217,7 +217,8 @@ internal static class OutboxMessageFactory
 
 /// <summary>
 /// Delivers one outbox message to the consumers of its type and records the result on the message.
-/// The message type decides how the payload is read and which handlers receive it.
+/// The message type decides how the payload is read and which handlers receive it. Nothing is counted here:
+/// the dispatcher calls <see cref="RecordCommitted"/> once the result is saved.
 /// </summary>
 internal sealed class OutboxProcessor(
     IEnumerable<IDisputeStatusChangedHandler> statusChangedHandlers,
@@ -255,23 +256,37 @@ internal sealed class OutboxProcessor(
             }
 
             message.MarkProcessed(timeProvider.GetUtcNow());
-            PortalMetrics.OutboxMessagesDispatched.Add(1);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             // A failed delivery must not stop the batch. The message is retried with backoff and abandoned after the limit.
             message.MarkFailed(exception.Message, timeProvider.GetUtcNow());
-            PortalMetrics.OutboxMessagesFailed.Add(1);
             logger.LogError(exception, "Outbox message {MessageId} failed on attempt {Attempt}", message.Id, message.Attempts);
+        }
+    }
 
-            if (message.IsAbandoned)
-            {
-                // Nothing retries this message again. The counter drives the alert in deploy/monitoring.
-                PortalMetrics.OutboxMessagesAbandoned.Add(1);
-                logger.LogCritical(
-                    "Outbox message {MessageId} of type {MessageType} was abandoned after {Attempts} attempts and needs manual attention",
-                    message.Id, message.Type, message.Attempts);
-            }
+    /// <summary>
+    /// Counts the result of a delivery, and raises the alarm for a message that was abandoned. Called only after
+    /// the dispatcher's transaction has committed: a cycle that rolls back is retried from the same state, and
+    /// must not count, or report as abandoned, a result that was never saved.
+    /// </summary>
+    public void RecordCommitted(OutboxMessage message)
+    {
+        if (message.ProcessedAt is not null)
+        {
+            PortalMetrics.OutboxMessagesDispatched.Add(1);
+            return;
+        }
+
+        PortalMetrics.OutboxMessagesFailed.Add(1);
+
+        if (message.IsAbandoned)
+        {
+            // Nothing retries this message again. The counter drives the alert in deploy/monitoring.
+            PortalMetrics.OutboxMessagesAbandoned.Add(1);
+            logger.LogCritical(
+                "Outbox message {MessageId} of type {MessageType} was abandoned after {Attempts} attempts and needs manual attention",
+                message.Id, message.Type, message.Attempts);
         }
     }
 

@@ -1,7 +1,10 @@
+using System.Diagnostics.Metrics;
 using System.Text.Json;
 using DisputePortal.Modules.Disputes.Application;
 using DisputePortal.Modules.Disputes.Contracts;
 using DisputePortal.Modules.Disputes.Domain;
+using DisputePortal.SharedKernel;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
@@ -101,7 +104,53 @@ public class OutboxProcessorTests
     private readonly RecordingHandler _handler = new();
     private readonly RecordingCommentHandler _commentHandler = new();
 
-    private OutboxProcessor Processor => new([_handler], [_commentHandler], _clock, NullLogger<OutboxProcessor>.Instance);
+    private readonly RecordingLogger _log = new();
+
+    private OutboxProcessor Processor => new([_handler], [_commentHandler], _clock, _log);
+
+    [Fact]
+    public async Task Delivering_counts_nothing_until_the_result_is_committed()
+    {
+        // The dispatcher saves the results of a whole batch in one transaction. Until it commits, nothing has happened.
+        using var counts = new OutboxCounts();
+        var delivered = Message();
+        var failed = new OutboxMessage(Guid.NewGuid(), "SomethingElse", "{}", DisputeTestData.Now);
+
+        await Processor.ProcessAsync(delivered, CancellationToken.None);
+        await Processor.ProcessAsync(failed, CancellationToken.None);
+
+        counts.Total.ShouldBe(0);
+
+        Processor.RecordCommitted(delivered);
+        Processor.RecordCommitted(failed);
+
+        counts.Of(PortalMetrics.OutboxMessagesDispatched).ShouldBe(1);
+        counts.Of(PortalMetrics.OutboxMessagesFailed).ShouldBe(1);
+        counts.Of(PortalMetrics.OutboxMessagesAbandoned).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task An_abandoned_message_is_counted_and_reported_as_critical_only_once_it_is_committed()
+    {
+        using var counts = new OutboxCounts();
+        _handler.Failure = new InvalidOperationException("inbox unavailable");
+        var message = Message();
+
+        for (var attempt = 1; attempt <= OutboxMessage.MaxAttempts; attempt++)
+        {
+            await Processor.ProcessAsync(message, CancellationToken.None);
+        }
+
+        message.IsAbandoned.ShouldBeTrue();
+        counts.Total.ShouldBe(0);
+        _log.Levels.ShouldNotContain(LogLevel.Critical);
+
+        Processor.RecordCommitted(message);
+
+        counts.Of(PortalMetrics.OutboxMessagesAbandoned).ShouldBe(1);
+        counts.Of(PortalMetrics.OutboxMessagesFailed).ShouldBe(1);
+        _log.Levels.Count(level => level == LogLevel.Critical).ShouldBe(1);
+    }
 
     [Fact]
     public async Task Delivers_the_event_to_every_handler_and_marks_the_message_processed()
@@ -338,4 +387,68 @@ public class DisputeQueriesTests
         result.Error!.Type.ShouldBe(DisputePortal.SharedKernel.ErrorType.NotFound);
         result.Error.Code.ShouldBe("transaction_not_found");
     }
+}
+
+/// <summary>
+/// What is recorded on the three outbox counters while a test runs. The counters are static, so this only holds
+/// because no other unit test records on them.
+/// </summary>
+internal sealed class OutboxCounts : IDisposable
+{
+    private readonly Dictionary<string, long> _totals = [];
+    private readonly MeterListener _listener = new();
+
+    public OutboxCounts()
+    {
+        _listener.InstrumentPublished = (instrument, listener) =>
+        {
+            if (instrument.Meter.Name == PortalMetrics.MeterName && instrument.Name.StartsWith("outbox_", StringComparison.Ordinal))
+            {
+                listener.EnableMeasurementEvents(instrument);
+            }
+        };
+        _listener.SetMeasurementEventCallback<long>((instrument, measurement, _, _) =>
+        {
+            lock (_totals)
+            {
+                _totals[instrument.Name] = _totals.GetValueOrDefault(instrument.Name) + measurement;
+            }
+        });
+        _listener.Start();
+    }
+
+    public long Total
+    {
+        get
+        {
+            lock (_totals)
+            {
+                return _totals.Values.Sum();
+            }
+        }
+    }
+
+    public long Of(Counter<long> counter)
+    {
+        lock (_totals)
+        {
+            return _totals.GetValueOrDefault(counter.Name);
+        }
+    }
+
+    public void Dispose() => _listener.Dispose();
+}
+
+/// <summary>Remembers the level of each line the outbox processor logs.</summary>
+internal sealed class RecordingLogger : ILogger<OutboxProcessor>
+{
+    public List<LogLevel> Levels { get; } = [];
+
+    public IDisposable? BeginScope<TState>(TState state)
+        where TState : notnull => null;
+
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+        Levels.Add(logLevel);
 }

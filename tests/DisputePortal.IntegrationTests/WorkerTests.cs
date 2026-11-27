@@ -249,6 +249,35 @@ public class WorkerTests(PortalFixture portal) : PortalTest(portal)
     }
 
     [Fact]
+    public async Task A_dispatch_cycle_that_cannot_save_counts_nothing_and_the_retry_counts_once()
+    {
+        await Portal.AddDisputesAsync(TestDisputes.Submitted(Clock.Now));
+
+        // The delivery itself works. Saving its result does not, as when the database connection drops before the commit.
+        await Portal.WithDisputesAsync(db => db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE disputes.outbox_messages ADD CONSTRAINT test_save_fails CHECK (attempts = 0) NOT VALID"));
+        try
+        {
+            await Should.ThrowAsync<DbUpdateException>(() => DispatchOutboxAsync());
+        }
+        finally
+        {
+            await Portal.WithDisputesAsync(db => db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE disputes.outbox_messages DROP CONSTRAINT test_save_fails"));
+        }
+
+        // The cycle rolled back: the message still waits, and nothing was counted for it.
+        (await Portal.WithDisputesAsync(db => db.OutboxMessages.SingleAsync())).Attempts.ShouldBe(0);
+        Metrics.Count(PortalMetrics.OutboxMessagesDispatched).ShouldBe(0);
+        Metrics.Count(PortalMetrics.OutboxMessagesFailed).ShouldBe(0);
+
+        await DispatchOutboxAsync();
+
+        (await Portal.WithDisputesAsync(db => db.OutboxMessages.SingleAsync())).ProcessedAt.ShouldNotBeNull();
+        Metrics.Count(PortalMetrics.OutboxMessagesDispatched).ShouldBe(1);
+    }
+
+    [Fact]
     public async Task A_failing_message_does_not_hold_up_the_messages_behind_it()
     {
         await Portal.WithDisputesAsync(db =>

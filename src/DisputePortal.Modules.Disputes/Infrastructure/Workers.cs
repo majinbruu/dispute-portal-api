@@ -190,6 +190,12 @@ internal sealed class OutboxDispatcherWorker(
 
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+
+        // Counted only after the commit, as the dispute worker does. A cycle that fails rolls back and is retried.
+        foreach (var message in messages)
+        {
+            processor.RecordCommitted(message);
+        }
     }
 }
 
