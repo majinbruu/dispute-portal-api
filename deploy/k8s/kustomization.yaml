@@ -1,8 +1,8 @@
 # Kubernetes manifests for the API. Apply with: kubectl apply -k deploy/k8s
 #
 # These show how the service is meant to run on a cluster. They have been validated against the
-# Kubernetes schemas but not applied to a real cluster, and the image below is not published.
-# Before applying, create the secret described in secret.example.yaml and set the image and the URLs in configmap.yaml.
+# Kubernetes schemas but not applied to a real cluster.
+# Before applying, create the secret described in secret.example.yaml and set the URLs in configmap.yaml.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
@@ -25,4 +25,5 @@ labels:
 images:
   - name: dispute-portal-api
     newName: ghcr.io/majinbruu/dispute-portal-api
-    newTag: "1.0.0"
+    # CI publishes every commit on main under its SHA. A real rollout pins one of those instead of latest.
+    newTag: latest
