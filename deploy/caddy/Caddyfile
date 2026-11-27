@@ -1,0 +1,30 @@
+# Reverse proxy for docker-compose.prod.yml. It terminates TLS for both public host names and is the
+# only container that publishes a port.
+#
+# Caddy picks the certificate source from the host name. For a public name it gets a certificate from
+# a public authority (Let's Encrypt) and renews it. For a *.localhost name it signs one with its own
+# local certificate authority, which is what makes this runnable on a developer machine.
+
+(security) {
+	header Strict-Transport-Security "max-age=31536000"
+}
+
+# The web app. nginx in the web container serves the pages and forwards /api/ to the API.
+{$APP_HOSTNAME} {
+	import security
+	reverse_proxy web:8080
+}
+
+# Keycloak. Only what sign-in to the acme-bank realm needs is public. The master realm, the admin
+# console, the admin REST API, health and metrics are not reachable from outside.
+{$AUTH_HOSTNAME} {
+	import security
+
+	@signin path /realms/acme-bank/* /resources/*
+	handle @signin {
+		reverse_proxy keycloak:8080
+	}
+	handle {
+		respond 404
+	}
+}

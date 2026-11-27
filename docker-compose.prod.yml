@@ -1,0 +1,110 @@
+# Production identity setup, layered on docker-compose.yml:
+#
+#   cp .env.prod.example .env.prod      (then fill in every value)
+#   docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# What changes from the demo stack:
+#   - Keycloak runs in production mode with its own PostgreSQL database and a strict public host name.
+#   - A reverse proxy terminates HTTPS. It is the only container that publishes a port.
+#   - Every secret and host name must come from the environment. There are no defaults.
+#   - No demo users, no password-grant client, no demo data and no Swagger page.
+#
+# What a real deployment still replaces: the two PostgreSQL containers with a managed database that is
+# backed up, the *.localhost names with real host names (the proxy then gets public certificates by
+# itself), and the bootstrap admin with named administrator accounts. Users would come from the bank's
+# own user directory. The realm file creates none.
+#
+# To try it on one machine with *.localhost names, add docker-compose.prod.local.yml.
+name: dispute-portal-prod
+
+services:
+  proxy:
+    image: caddy:2-alpine
+    environment:
+      APP_HOSTNAME: ${APP_HOSTNAME:?Set APP_HOSTNAME to the public host name of the web app}
+      AUTH_HOSTNAME: ${AUTH_HOSTNAME:?Set AUTH_HOSTNAME to the public host name of Keycloak}
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates and their keys. They must survive a restart, or the proxy asks for new ones every time.
+      - proxy-data:/data
+    ports:
+      - "80:80"
+      - "443:443"
+    read_only: true
+    tmpfs:
+      - /config
+    restart: unless-stopped
+
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD for the application database}
+
+  # Keycloak's own database: a separate server, database and login from the application's.
+  keycloak-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?Set KEYCLOAK_DB_PASSWORD for the Keycloak database}
+    volumes:
+      - keycloak-db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  keycloak:
+    # `start` is production mode: no embedded database, strict host name checks, caches on.
+    command: ["start", "--import-realm"]
+    environment:
+      # Used once, to create the first administrator. The admin console is not published by the proxy.
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD for the first Keycloak administrator}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?Set KEYCLOAK_DB_PASSWORD for the Keycloak database}
+      # One fixed public URL. Every token, redirect and metadata document carries it, whatever address a request used.
+      KC_HOSTNAME: https://${AUTH_HOSTNAME:?Set AUTH_HOSTNAME to the public host name of Keycloak}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "false"
+      # TLS ends at the proxy, so Keycloak listens on plain HTTP inside the network and trusts the proxy's X-Forwarded headers.
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      # The realm file reads the web app's host name from here for its redirect URIs.
+      APP_HOSTNAME: ${APP_HOSTNAME:?Set APP_HOSTNAME to the public host name of the web app}
+    volumes:
+      # Same target as the demo realm, so this file takes its place.
+      - ./deploy/keycloak/acme-bank-realm.prod.json:/opt/keycloak/data/import/acme-bank-realm.json:ro
+    ports: !reset []
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+
+  api:
+    environment:
+      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=dispute_portal;Username=dispute_portal;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD for the application database}
+      # The API reads Keycloak's metadata and signing keys from the public HTTPS URL, the same one the
+      # browser uses and the tokens name as issuer. There is no internal shortcut, so the keys that verify
+      # tokens are only ever fetched over verified TLS. The cost: the request leaves through the proxy and
+      # comes back, and the API cannot refresh the keys while the proxy is down.
+      Auth__Authority: https://${AUTH_HOSTNAME:?Set AUTH_HOSTNAME to the public host name of Keycloak}/realms/acme-bank
+      Auth__MetadataAddress: ""
+      Auth__RequireHttpsMetadata: "true"
+      # The web container forwards the public host name. localhost is the container's own health probe.
+      AllowedHosts: ${APP_HOSTNAME:?Set APP_HOSTNAME to the public host name of the web app};localhost
+      # One instance, so it applies its own migrations. With several instances a separate job does it (see deploy/k8s).
+      Database__MigrateOnStartup: "true"
+      Seed__Enabled: "false"
+      ApiDocs__Enabled: "false"
+    ports: !reset []
+
+  web:
+    environment:
+      OIDC_AUTHORITY: https://${AUTH_HOSTNAME:?Set AUTH_HOSTNAME to the public host name of Keycloak}/realms/acme-bank
+      OIDC_ORIGIN: https://${AUTH_HOSTNAME:?Set AUTH_HOSTNAME to the public host name of Keycloak}
+    ports: !reset []
+
+volumes:
+  proxy-data:
+  keycloak-db-data:

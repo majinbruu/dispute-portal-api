@@ -1,0 +1,44 @@
+# Lets docker-compose.prod.yml run on one machine with *.localhost host names. Nothing here belongs in
+# a real deployment, where the host names are in public DNS and the certificates come from a public
+# authority that every container already trusts.
+#
+#   docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.prod.local.yml up -d
+#
+# Your browser will warn about the certificates, because it does not know the proxy's local authority.
+services:
+  proxy:
+    # Stands in for public DNS: inside the network the Keycloak host name leads to the proxy.
+    networks:
+      default:
+        aliases:
+          - ${AUTH_HOSTNAME:?Set AUTH_HOSTNAME to the public host name of Keycloak}
+    healthcheck:
+      # Healthy once the proxy has created its local certificate authority.
+      test: ["CMD", "test", "-f", "/data/caddy/pki/authorities/local/root.crt"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Copies the local authority's public certificate, and nothing else, to where the API can read it.
+  local-ca:
+    image: caddy:2-alpine
+    command: ["sh", "-c", "cp /data/caddy/pki/authorities/local/root.crt /ca/root.crt && chmod 444 /ca/root.crt"]
+    volumes:
+      - proxy-data:/data:ro
+      - local-ca:/ca
+    depends_on:
+      proxy:
+        condition: service_healthy
+
+  api:
+    environment:
+      # Trust the local authority, so the API verifies Keycloak's certificate instead of skipping the check.
+      SSL_CERT_FILE: /ca/root.crt
+    volumes:
+      - local-ca:/ca:ro
+    depends_on:
+      local-ca:
+        condition: service_completed_successfully
+
+volumes:
+  local-ca:
