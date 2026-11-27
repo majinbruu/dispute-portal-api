@@ -134,6 +134,18 @@ namespace DisputePortal.Modules.Disputes.Infrastructure.Migrations
                     END;
                 """);
 
+            // An idempotency key stores a hash of the request it belongs to. That request used to name the debit order
+            // and the reason code, and now names the transaction and the reason id. The hashes are recalculated the way
+            // the application calculates them, so a request sent before this migration and retried after it with the
+            // same key still returns its dispute instead of being refused as a different request.
+            migrationBuilder.Sql(
+                """
+                UPDATE disputes.idempotency_keys AS k
+                SET request_hash = upper(encode(sha256(convert_to(replace(d.transaction_id::text, '-', '') || '|' || d.reason_id, 'UTF8')), 'hex'))
+                FROM disputes.disputes AS d
+                WHERE d.id = k.dispute_id;
+                """);
+
             // The empty defaults were only there to add the columns to a table that already has rows.
             migrationBuilder.Sql(
                 """
@@ -165,6 +177,14 @@ namespace DisputePortal.Modules.Disputes.Infrastructure.Migrations
                 SET payload = (payload - 'CounterpartyName' - 'TransactionType')
                     || jsonb_build_object('CreditorName', payload -> 'CounterpartyName')
                 WHERE type = 'DisputeStatusChanged' AND jsonb_exists(payload, 'CounterpartyName');
+                """);
+
+            migrationBuilder.Sql(
+                """
+                UPDATE disputes.idempotency_keys AS k
+                SET request_hash = upper(encode(sha256(convert_to(replace(d.transaction_id::text, '-', '') || '|' || d.reason_code, 'UTF8')), 'hex'))
+                FROM disputes.disputes AS d
+                WHERE d.id = k.dispute_id;
                 """);
 
             migrationBuilder.DropColumn(
