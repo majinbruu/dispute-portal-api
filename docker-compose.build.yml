@@ -1,0 +1,18 @@
+# Builds the API and the web app from source instead of pulling the published images.
+# Used for local development and by CI.
+#
+#   git clone https://github.com/majinbruu/dispute-portal-web     (next to the API repo)
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#
+# The images get local names, so a build never replaces a pulled image under the published name.
+services:
+  api:
+    image: dispute-portal-api:local
+    build:
+      context: .
+
+  web:
+    image: dispute-portal-web:local
+    build:
+      # The web repo is expected next to this one. Set WEB_CONTEXT in .env if it lives elsewhere.
+      context: ${WEB_CONTEXT:-../dispute-portal-web}

@@ -1,10 +1,14 @@
 # Full stack for local review: PostgreSQL, Keycloak, the API and the web app.
 #
 #   git clone https://github.com/majinbruu/dispute-portal-api
-#   git clone https://github.com/majinbruu/dispute-portal-web     (next to the API repo)
-#   cd dispute-portal-api && docker compose up --build
+#   cd dispute-portal-api && docker compose up -d
 #
+# The API and web images are pulled from GitHub Container Registry, where CI publishes them from main.
 # Then open http://localhost:3000. All values here are demo defaults; copy .env.example to .env to change them.
+#
+# Two more files build on this one:
+#   docker-compose.build.yml  builds both images from source instead of pulling them
+#   docker-compose.prod.yml   production identity setup: Keycloak in production mode behind HTTPS
 name: dispute-portal
 
 services:
@@ -36,7 +40,7 @@ services:
       KC_HEALTH_ENABLED: "true"
       JAVA_OPTS_KC_HEAP: "-Xms128m -Xmx512m"
     volumes:
-      - ./deploy/keycloak:/opt/keycloak/data/import:ro
+      - ./deploy/keycloak/acme-bank-realm.json:/opt/keycloak/data/import/acme-bank-realm.json:ro
     ports:
       - "${KEYCLOAK_PORT:-8080}:8080"
     healthcheck:
@@ -54,8 +58,8 @@ services:
     restart: unless-stopped
 
   api:
-    build:
-      context: .
+    # IMAGE_TAG pins both images to one commit SHA. The default is the latest build of main.
+    image: ghcr.io/majinbruu/dispute-portal-api:${IMAGE_TAG:-latest}
     environment:
       ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=dispute_portal;Username=dispute_portal;Password=${POSTGRES_PASSWORD:-local-dev-only}
       Auth__Authority: http://localhost:${KEYCLOAK_PORT:-8080}/realms/acme-bank
@@ -79,9 +83,7 @@ services:
     restart: unless-stopped
 
   web:
-    build:
-      # The web repo is expected next to this one. Set WEB_CONTEXT in .env if it lives elsewhere.
-      context: ${WEB_CONTEXT:-../dispute-portal-web}
+    image: ghcr.io/majinbruu/dispute-portal-web:${IMAGE_TAG:-latest}
     environment:
       OIDC_AUTHORITY: http://localhost:${KEYCLOAK_PORT:-8080}/realms/acme-bank
       OIDC_ORIGIN: http://localhost:${KEYCLOAK_PORT:-8080}
