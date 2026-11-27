@@ -1,6 +1,6 @@
-using DisputePortal.Modules.DebitOrders.Contracts;
 using DisputePortal.Modules.Disputes.Application;
 using DisputePortal.Modules.Disputes.Infrastructure;
+using DisputePortal.Modules.Transactions.Contracts;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;

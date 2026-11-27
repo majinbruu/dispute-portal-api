@@ -7,7 +7,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DisputePortal.Api", "src\DisputePortal.Api\DisputePortal.Api.csproj", "{B995CDC6-547A-4071-9203-2DA247484920}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DisputePortal.Modules.DebitOrders", "src\DisputePortal.Modules.DebitOrders\DisputePortal.Modules.DebitOrders.csproj", "{D854ACB8-3635-4F07-AFE5-53211DE6A2BF}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DisputePortal.Modules.Transactions", "src\DisputePortal.Modules.Transactions\DisputePortal.Modules.Transactions.csproj", "{D854ACB8-3635-4F07-AFE5-53211DE6A2BF}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DisputePortal.Modules.Disputes", "src\DisputePortal.Modules.Disputes\DisputePortal.Modules.Disputes.csproj", "{4919FA72-C939-4B07-BEAA-B789A7FE62B0}"
 EndProject

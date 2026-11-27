@@ -10,8 +10,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DisputePortal.SharedKernel\DisputePortal.SharedKernel.csproj" />
-    <!-- Only the DebitOrders.Contracts namespace may be used. Enforced by the architecture tests. -->
-    <ProjectReference Include="..\DisputePortal.Modules.DebitOrders\DisputePortal.Modules.DebitOrders.csproj" />
+    <!-- Only the Transactions.Contracts namespace may be used. Enforced by the architecture tests. -->
+    <ProjectReference Include="..\DisputePortal.Modules.Transactions\DisputePortal.Modules.Transactions.csproj" />
   </ItemGroup>
 
   <ItemGroup>

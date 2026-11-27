@@ -1,7 +1,7 @@
 using System.Reflection;
-using DisputePortal.Modules.DebitOrders;
 using DisputePortal.Modules.Disputes;
 using DisputePortal.Modules.Notifications;
+using DisputePortal.Modules.Transactions;
 using NetArchTest.Rules;
 
 namespace DisputePortal.ArchitectureTests;
@@ -12,30 +12,30 @@ namespace DisputePortal.ArchitectureTests;
 /// </summary>
 public class ModuleBoundaryTests
 {
-    private const string DebitOrders = "DisputePortal.Modules.DebitOrders";
+    private const string Transactions = "DisputePortal.Modules.Transactions";
     private const string Disputes = "DisputePortal.Modules.Disputes";
     private const string Notifications = "DisputePortal.Modules.Notifications";
 
-    private static readonly Assembly DebitOrdersAssembly = typeof(DebitOrdersModule).Assembly;
+    private static readonly Assembly TransactionsAssembly = typeof(TransactionsModule).Assembly;
     private static readonly Assembly DisputesAssembly = typeof(DisputesModule).Assembly;
     private static readonly Assembly NotificationsAssembly = typeof(NotificationsModule).Assembly;
 
-    public static TheoryData<string> Modules => new() { DebitOrders, Disputes, Notifications };
+    public static TheoryData<string> Modules => new() { Transactions, Disputes, Notifications };
 
     [Fact]
-    public void DebitOrders_depends_on_no_other_module()
+    public void Transactions_depends_on_no_other_module()
     {
-        var result = Types.InAssembly(DebitOrdersAssembly).ShouldNot().HaveDependencyOnAny(Disputes, Notifications).GetResult();
+        var result = Types.InAssembly(TransactionsAssembly).ShouldNot().HaveDependencyOnAny(Disputes, Notifications).GetResult();
 
         AssertPasses(result);
     }
 
     [Fact]
-    public void Disputes_uses_only_the_contracts_of_DebitOrders()
+    public void Disputes_uses_only_the_contracts_of_Transactions()
     {
         var result = Types.InAssembly(DisputesAssembly)
             .ShouldNot().HaveDependencyOnAny(
-                $"{DebitOrders}.Domain", $"{DebitOrders}.Application", $"{DebitOrders}.Infrastructure", $"{DebitOrders}.Controllers", Notifications)
+                $"{Transactions}.Domain", $"{Transactions}.Application", $"{Transactions}.Infrastructure", $"{Transactions}.Controllers", Notifications)
             .GetResult();
 
         AssertPasses(result);
@@ -46,7 +46,7 @@ public class ModuleBoundaryTests
     {
         var result = Types.InAssembly(NotificationsAssembly)
             .ShouldNot().HaveDependencyOnAny(
-                $"{Disputes}.Domain", $"{Disputes}.Application", $"{Disputes}.Infrastructure", $"{Disputes}.Controllers", DebitOrders)
+                $"{Disputes}.Domain", $"{Disputes}.Application", $"{Disputes}.Infrastructure", $"{Disputes}.Controllers", Transactions)
             .GetResult();
 
         AssertPasses(result);
@@ -94,7 +94,7 @@ public class ModuleBoundaryTests
 
     private static Assembly AssemblyOf(string module) => module switch
     {
-        DebitOrders => DebitOrdersAssembly,
+        Transactions => TransactionsAssembly,
         Disputes => DisputesAssembly,
         Notifications => NotificationsAssembly,
         _ => throw new ArgumentOutOfRangeException(nameof(module), module, null),

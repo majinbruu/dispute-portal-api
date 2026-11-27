@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
-using DisputePortal.Modules.DebitOrders.Contracts;
 using DisputePortal.Modules.Disputes.Domain;
+using DisputePortal.Modules.Transactions.Contracts;
 using DisputePortal.SharedKernel;
 
 namespace DisputePortal.Modules.Disputes.Application;

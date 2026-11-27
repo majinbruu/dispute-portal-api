@@ -1,6 +1,6 @@
-using DisputePortal.Modules.DebitOrders.Contracts;
 using DisputePortal.Modules.Disputes.Application;
 using DisputePortal.Modules.Disputes.Domain;
+using DisputePortal.Modules.Transactions.Contracts;
 using DisputePortal.SharedKernel;
 using Microsoft.EntityFrameworkCore;
 

@@ -1,6 +1,6 @@
-using DisputePortal.Modules.DebitOrders.Contracts;
 using DisputePortal.Modules.Disputes.Application;
 using DisputePortal.Modules.Disputes.Domain;
+using DisputePortal.Modules.Transactions.Contracts;
 using DisputePortal.SharedKernel;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -58,7 +58,7 @@ internal sealed class EfDisputeRepository(DisputesDbContext db) : IDisputeReposi
     }
 }
 
-/// <summary>Tells the DebitOrders module which debit orders already have a dispute, through that module's own contract.</summary>
+/// <summary>Tells the Transactions module which debit orders already have a dispute, through that module's own contract.</summary>
 internal sealed class DisputeStatusProvider(DisputesDbContext db) : IDisputeStatusProvider
 {
     public async Task<IReadOnlyDictionary<Guid, DebitOrderDisputeStatus>> GetForDebitOrdersAsync(

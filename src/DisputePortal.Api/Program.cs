@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Text.Json.Serialization;
 using DisputePortal.Api.Hosting;
-using DisputePortal.Modules.DebitOrders;
 using DisputePortal.Modules.Disputes;
 using DisputePortal.Modules.Notifications;
+using DisputePortal.Modules.Transactions;
 using DisputePortal.SharedKernel.Web;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.OpenApi;
@@ -38,7 +38,7 @@ builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = 
 
 // Each module contributes its controllers. They are internal to the module and discovered through its assembly.
 builder.Services.AddPortalControllers(
-    typeof(DebitOrdersModule).Assembly,
+    typeof(TransactionsModule).Assembly,
     typeof(DisputesModule).Assembly,
     typeof(NotificationsModule).Assembly);
 
@@ -70,12 +70,12 @@ builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document,
 }));
 
 builder.Services
-    .AddDebitOrdersModule(connectionString)
+    .AddTransactionsModule(connectionString)
     .AddDisputesModule(configuration, connectionString)
     .AddNotificationsModule(connectionString);
 
 builder.Services.AddHealthChecks()
-    .AddDebitOrdersHealthChecks()
+    .AddTransactionsHealthChecks()
     .AddDisputesHealthChecks()
     .AddNotificationsHealthChecks();
 
@@ -96,14 +96,14 @@ await Metrics.DefaultRegistry.CollectAndExportAsTextAsync(Stream.Null);
 var migrateOnly = args.Contains("--migrate-only");
 if (migrateOnly || configuration.GetValue("Database:MigrateOnStartup", false))
 {
-    await app.Services.MigrateDebitOrdersAsync();
+    await app.Services.MigrateTransactionsAsync();
     await app.Services.MigrateDisputesAsync();
     await app.Services.MigrateNotificationsAsync();
 }
 
 if (configuration.GetValue("Seed:Enabled", false))
 {
-    await app.Services.SeedDebitOrdersAsync();
+    await app.Services.SeedTransactionsAsync();
     await app.Services.SeedDisputesAsync();
 }
 

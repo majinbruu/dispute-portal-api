@@ -22,7 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DisputePortal.SharedKernel\DisputePortal.SharedKernel.csproj" />
-    <ProjectReference Include="..\DisputePortal.Modules.DebitOrders\DisputePortal.Modules.DebitOrders.csproj" />
+    <ProjectReference Include="..\DisputePortal.Modules.Transactions\DisputePortal.Modules.Transactions.csproj" />
     <ProjectReference Include="..\DisputePortal.Modules.Disputes\DisputePortal.Modules.Disputes.csproj" />
     <ProjectReference Include="..\DisputePortal.Modules.Notifications\DisputePortal.Modules.Notifications.csproj" />
   </ItemGroup>

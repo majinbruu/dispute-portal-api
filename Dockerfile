@@ -8,7 +8,7 @@ WORKDIR /src
 COPY global.json Directory.Build.props Directory.Packages.props ./
 COPY src/DisputePortal.Api/DisputePortal.Api.csproj src/DisputePortal.Api/
 COPY src/DisputePortal.SharedKernel/DisputePortal.SharedKernel.csproj src/DisputePortal.SharedKernel/
-COPY src/DisputePortal.Modules.DebitOrders/DisputePortal.Modules.DebitOrders.csproj src/DisputePortal.Modules.DebitOrders/
+COPY src/DisputePortal.Modules.Transactions/DisputePortal.Modules.Transactions.csproj src/DisputePortal.Modules.Transactions/
 COPY src/DisputePortal.Modules.Disputes/DisputePortal.Modules.Disputes.csproj src/DisputePortal.Modules.Disputes/
 COPY src/DisputePortal.Modules.Notifications/DisputePortal.Modules.Notifications.csproj src/DisputePortal.Modules.Notifications/
 RUN dotnet restore src/DisputePortal.Api/DisputePortal.Api.csproj
