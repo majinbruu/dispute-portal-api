@@ -16,11 +16,17 @@ internal static class TestData
             new DateOnly(2024, 2, 1), DateAdjustmentAllowed: true, TrackingEnabled: true),
         Now);
 
-    public static Mandate DebiCheckMandate(decimal instalment = 449m, decimal maximum = 673.50m, int collectionDay = 15, bool dateAdjustmentAllowed = false) => Mandate.Create(
+    public static Mandate DebiCheckMandate(
+        decimal instalment = 449m,
+        decimal maximum = 673.50m,
+        int collectionDay = 15,
+        bool dateAdjustmentAllowed = false,
+        CollectionFrequency frequency = CollectionFrequency.Monthly,
+        DateOnly? firstCollectionDate = null) => Mandate.Create(
         new MandateDetails(
             Guid.NewGuid(), Customer, "MRN000000002", "MTN-1", MandateType.DebiCheck, "MTN South Africa", "MTN SA",
-            Money.Zar(instalment), Money.Zar(maximum), CollectionFrequency.Monthly, collectionDay,
-            new DateOnly(2025, 3, collectionDay), dateAdjustmentAllowed, TrackingEnabled: true,
+            Money.Zar(instalment), Money.Zar(maximum), frequency, collectionDay,
+            firstCollectionDate ?? new DateOnly(2025, 3, collectionDay), dateAdjustmentAllowed, TrackingEnabled: true,
             AuthenticationType: "Real-time (banking app)", AuthenticatedAt: Now.AddYears(-1)),
         Now);
 

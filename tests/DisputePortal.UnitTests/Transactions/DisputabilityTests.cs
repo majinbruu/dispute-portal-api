@@ -60,6 +60,29 @@ public class DebitOrderDisputabilityPolicyTests
     }
 
     [Fact]
+    public void A_debicheck_collection_before_the_first_collection_date_is_disputable()
+    {
+        var mandate = TestData.DebiCheckMandate(collectionDay: 15, firstCollectionDate: new DateOnly(2026, 12, 15));
+
+        var decision = DebitOrderDisputabilityPolicy.Evaluate(mandate, Money.Zar(449m), new DateOnly(2026, 11, 15), accepted: true);
+
+        decision.IsDisputable.ShouldBeTrue();
+        decision.Reason.ShouldBe(DisputabilityReason.DateOutsideMandateTerms);
+    }
+
+    [Theory]
+    [InlineData("2026-11-16", false)]  // six weeks after the first collection
+    [InlineData("2026-11-17", true)]   // a day late
+    public void A_weekly_debicheck_collection_is_checked_against_the_weekly_schedule(string actionDate, bool disputable)
+    {
+        var mandate = TestData.DebiCheckMandate(frequency: CollectionFrequency.Weekly, firstCollectionDate: new DateOnly(2026, 10, 5));
+
+        var decision = DebitOrderDisputabilityPolicy.Evaluate(mandate, Money.Zar(449m), DateOnly.Parse(actionDate), accepted: true);
+
+        decision.IsDisputable.ShouldBe(disputable);
+    }
+
+    [Fact]
     public void A_rejected_collection_is_not_disputable_whatever_the_mandate_says()
     {
         var decision = DebitOrderDisputabilityPolicy.Evaluate(TestData.RegisteredMandate(), Money.Zar(599m), new DateOnly(2026, 11, 1), accepted: false);

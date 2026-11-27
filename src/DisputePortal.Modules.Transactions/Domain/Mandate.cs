@@ -51,11 +51,12 @@ internal sealed class Mandate
 
     public CollectionFrequency Frequency { get; private set; }
 
+    /// <summary>The day of the month a monthly mandate collects on.</summary>
     public int CollectionDay { get; private set; }
 
     public DateOnly FirstCollectionDate { get; private set; }
 
-    /// <summary>Whether the creditor may collect on a day other than <see cref="CollectionDay"/>.</summary>
+    /// <summary>Whether the creditor may collect on a date other than the ones the frequency gives.</summary>
     public bool DateAdjustmentAllowed { get; private set; }
 
     public bool TrackingEnabled { get; private set; }

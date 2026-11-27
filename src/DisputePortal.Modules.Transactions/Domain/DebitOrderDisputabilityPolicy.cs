@@ -35,7 +35,7 @@ internal static class DebitOrderDisputabilityPolicy
             return new(true, DisputabilityReason.AmountAboveMandateMaximum);
         }
 
-        if (actionDate.Day != mandate.CollectionDay && !mandate.DateAdjustmentAllowed)
+        if (!CollectionSchedule.IsExpectedDate(mandate, actionDate) && !mandate.DateAdjustmentAllowed)
         {
             return new(true, DisputabilityReason.DateOutsideMandateTerms);
         }
