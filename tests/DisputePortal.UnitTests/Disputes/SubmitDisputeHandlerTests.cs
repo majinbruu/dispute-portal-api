@@ -180,6 +180,23 @@ public class SubmitDisputeHandlerTests
     }
 
     [Fact]
+    public async Task A_retry_that_arrives_while_its_first_attempt_is_being_saved_returns_that_attempts_dispute()
+    {
+        var debitOrder = _transactions.Add(ContractData.DebitOrder());
+
+        // The first attempt is saved after the retry looked for its idempotency key and found none.
+        Result<SubmitDisputeOutcome>? first = null;
+        _transactions.BeforeNextFind = async () => first = await Handler.HandleAsync(Command(debitOrder.Id), CancellationToken.None);
+
+        var retry = await Handler.HandleAsync(Command(debitOrder.Id), CancellationToken.None);
+
+        retry.IsSuccess.ShouldBeTrue();
+        retry.Value.Replayed.ShouldBeTrue();
+        retry.Value.Dispute.Id.ShouldBe(first!.Value.Dispute.Id);
+        _disputes.Disputes.Count.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task A_comment_given_with_the_dispute_starts_its_thread()
     {
         var debitOrder = _transactions.Add(ContractData.DebitOrder());
@@ -358,8 +375,19 @@ internal sealed class FakeTransactionDirectory : ITransactionDirectory
         return transaction;
     }
 
-    public Task<TransactionForDispute?> FindAsync(Guid transactionId, Guid customerId, CancellationToken cancellationToken) =>
-        Task.FromResult(_transactions.FirstOrDefault(t => t.Id == transactionId && t.CustomerId == customerId));
+    /// <summary>Runs once, just before the next lookup. Lets a test save something while a request is under way.</summary>
+    public Func<Task>? BeforeNextFind { get; set; }
+
+    public async Task<TransactionForDispute?> FindAsync(Guid transactionId, Guid customerId, CancellationToken cancellationToken)
+    {
+        if (BeforeNextFind is { } hook)
+        {
+            BeforeNextFind = null;
+            await hook();
+        }
+
+        return _transactions.FirstOrDefault(t => t.Id == transactionId && t.CustomerId == customerId);
+    }
 }
 
 internal sealed class InMemoryDisputeRepository : IDisputeRepository

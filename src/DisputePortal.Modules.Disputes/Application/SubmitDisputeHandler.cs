@@ -49,7 +49,9 @@ internal sealed class SubmitDisputeHandler(ITransactionDirectory transactions, I
 
         if (await disputes.ExistsForTransactionAsync(transaction.TransactionId, cancellationToken))
         {
-            return DisputeErrors.AlreadyDisputed;
+            // The dispute may be this request's own: an earlier attempt that was still being saved when this
+            // retry looked for its key. That is a replay, not a second dispute.
+            return await FindReplayAsync(command, requestHash, cancellationToken) ?? DisputeErrors.AlreadyDisputed;
         }
 
         var now = timeProvider.GetUtcNow();
