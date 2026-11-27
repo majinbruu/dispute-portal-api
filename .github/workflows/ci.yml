@@ -85,6 +85,8 @@ jobs:
       ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=dispute_portal;Username=dispute_portal;Password=ci-only
       Database__MigrateOnStartup: "true"
       Seed__Enabled: "true"
+      # Start-up refuses to run without an identity provider. Nothing is fetched from it until a token arrives.
+      Auth__Authority: https://login.example.com/realms/acme-bank
       ASPNETCORE_URLS: http://localhost:5080
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -97,8 +99,10 @@ jobs:
       - name: Build
         run: dotnet build src/DisputePortal.Api --configuration Release -p:OpenApiGenerateDocuments=false
       - name: Start the API and wait until it is ready
+        # Started from its output folder, as in the image, so that appsettings.json is read.
+        working-directory: src/DisputePortal.Api/bin/Release/net10.0
         run: |
-          dotnet src/DisputePortal.Api/bin/Release/net10.0/DisputePortal.Api.dll > api.log 2>&1 &
+          dotnet DisputePortal.Api.dll > api.log 2>&1 &
           for attempt in $(seq 1 30); do
             if curl --silent --fail http://localhost:5080/health/ready > /dev/null; then
               echo "Ready after ${attempt} attempts"

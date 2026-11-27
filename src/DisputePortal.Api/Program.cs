@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using System.Text.Json.Serialization;
 using DisputePortal.Api.Hosting;
 using DisputePortal.Modules.Disputes;
@@ -18,6 +19,26 @@ if (args.Contains(HealthProbe.Argument))
 var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
 var connectionString = configuration.GetConnectionString("Postgres") ?? string.Empty;
+
+// A wrong identity provider setting stops the process here, with a message that names it. That includes
+// --migrate-only: the migration job shares the deployment's settings and runs first, so a release with a
+// wrong setting stops before the schema changes.
+//
+// One run is not checked: the build loads this program inside the OpenAPI tool to write docs/api/openapi.json.
+// It serves no requests there and has no deployment settings.
+var auth = AuthSettings.Read(configuration);
+var writingOpenApiDocument = Assembly.GetEntryAssembly()?.GetName().Name == "GetDocument.Insider";
+if (!writingOpenApiDocument && auth.Problems() is { Count: > 0 } problems)
+{
+    await Console.Error.WriteLineAsync(
+        "The application cannot start because its configuration is invalid (in an environment variable, write ':' as '__'):");
+    foreach (var problem in problems)
+    {
+        await Console.Error.WriteLineAsync($"  - {problem}");
+    }
+
+    return 1;
+}
 
 // Structured JSON logs to stdout, each line carrying the W3C trace ID of the request that produced it.
 builder.Logging.ClearProviders();
@@ -43,7 +64,7 @@ builder.Services.AddPortalControllers(
     typeof(DisputesModule).Assembly,
     typeof(NotificationsModule).Assembly);
 
-builder.Services.AddPortalAuthentication(configuration);
+builder.Services.AddPortalAuthentication(auth);
 builder.Services.AddPortalRateLimiting(configuration);
 
 builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document, _, _) =>

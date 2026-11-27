@@ -15,27 +15,24 @@ internal static class SecurityExtensions
     /// Validates Keycloak access tokens. The issuer the token carries is the public URL the browser used,
     /// while the API may reach Keycloak at an internal address, so the metadata address is configured separately.
     /// </summary>
-    public static IServiceCollection AddPortalAuthentication(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddPortalAuthentication(this IServiceCollection services, AuthSettings auth)
     {
-        var auth = configuration.GetSection("Auth");
-        var authority = auth["Authority"];
-
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
         {
-            options.Authority = authority;
-            options.Audience = auth["Audience"];
-            options.RequireHttpsMetadata = auth.GetValue("RequireHttpsMetadata", true);
+            options.Authority = auth.Authority;
+            options.Audience = auth.Audience;
+            options.RequireHttpsMetadata = auth.RequireHttpsMetadata;
             options.MapInboundClaims = false;
 
-            if (auth["MetadataAddress"] is { Length: > 0 } metadataAddress)
+            if (auth.MetadataAddress is not null)
             {
-                options.MetadataAddress = metadataAddress;
+                options.MetadataAddress = auth.MetadataAddress;
             }
 
             options.TokenValidationParameters = new TokenValidationParameters
             {
                 ValidateIssuer = true,
-                ValidIssuer = authority,
+                ValidIssuer = auth.Authority,
                 ValidateAudience = true,
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,

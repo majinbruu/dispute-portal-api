@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\DisputePortal.Api\DisputePortal.Api.csproj" />
     <ProjectReference Include="..\..\src\DisputePortal.SharedKernel\DisputePortal.SharedKernel.csproj" />
     <ProjectReference Include="..\..\src\DisputePortal.Modules.Transactions\DisputePortal.Modules.Transactions.csproj" />
     <ProjectReference Include="..\..\src\DisputePortal.Modules.Disputes\DisputePortal.Modules.Disputes.csproj" />
