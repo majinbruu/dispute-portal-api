@@ -48,7 +48,7 @@ The system plays the role of the customer's own bank: the bank that holds the ac
 | Authentication | Keycloak 26, OpenID Connect, JWT bearer validation, one authorisation policy per role |
 | Validation | FluentValidation |
 | API documentation | Built-in OpenAPI document, Swagger UI |
-| Observability | Structured JSON logs with trace IDs, health checks, Prometheus metrics from .NET meters |
+| Observability | Structured JSON logs with trace IDs, health checks, Prometheus metrics |
 | Resilience and safety | Transactional outbox, idempotent submission, rate limiting, optimistic concurrency |
 | Tests | xUnit, Shouldly, NetArchTest (architecture rules), Coverlet, Testcontainers (integration tests against a real PostgreSQL) |
 | Packaging | Multi-stage Dockerfile on a chiseled non-root image, Docker Compose, Kubernetes manifests |
