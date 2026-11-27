@@ -8,7 +8,7 @@ The system covers one bounded area, debit order disputes, with three closely rel
 
 ## Decision
 
-Build one deployable ASP.NET Core API, split internally into three modules: `DebitOrders`, `Disputes` and `Notifications`. Each module is its own project with its own database schema and migrations. A module exposes a small public `Contracts` namespace and keeps everything else `internal`. Architecture tests fail the build if a module reaches past another module's contracts.
+Build one deployable ASP.NET Core API, split internally into three modules: `Transactions`, `Disputes` and `Notifications`. Each module is its own project with its own database schema and migrations. A module exposes a small public `Contracts` namespace and keeps everything else `internal`. Architecture tests fail the build if a module reaches past another module's contracts.
 
 ## Alternatives considered
 
