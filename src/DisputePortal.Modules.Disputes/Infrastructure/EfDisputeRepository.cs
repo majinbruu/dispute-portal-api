@@ -17,6 +17,27 @@ internal sealed class EfDisputeRepository(DisputesDbContext db) : IDisputeReposi
             .Include(d => d.Events)
             .FirstOrDefaultAsync(d => d.Id == disputeId && d.CustomerId == customerId, cancellationToken);
 
+    public Task<Dispute?> FindForChangeAsync(Guid disputeId, Guid customerId, CancellationToken cancellationToken) =>
+        db.Disputes
+            .Include(d => d.Events)
+            .Include(d => d.Comments)
+            .FirstOrDefaultAsync(d => d.Id == disputeId && d.CustomerId == customerId, cancellationToken);
+
+    public async Task<bool> TrySaveAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // The row version (xmin) no longer matches: another request or the worker changed the status first.
+            db.ChangeTracker.Clear();
+            return false;
+        }
+    }
+
     public Task<bool> ExistsForTransactionAsync(Guid transactionId, CancellationToken cancellationToken) =>
         db.Disputes.AnyAsync(d => d.TransactionId == transactionId && d.Status != DisputeStatus.Withdrawn, cancellationToken);
 

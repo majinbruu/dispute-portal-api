@@ -23,6 +23,7 @@ public static class DisputesModule
         services.AddScoped<IDisputeRepository, EfDisputeRepository>();
         services.AddScoped<IDisputeStatusProvider, DisputeStatusProvider>();
         services.AddScoped<SubmitDisputeHandler>();
+        services.AddScoped<WithdrawDisputeHandler>();
         services.AddScoped<DisputeQueries>();
         services.AddScoped<DisputeProcessingService>();
         services.AddScoped<OutboxProcessor>();

@@ -98,6 +98,9 @@ internal static class DisputeErrors
 
     public static readonly Error AlreadyDisputed = Error.Conflict("already_disputed", "This transaction has already been disputed.");
 
+    public static readonly Error NotWithdrawable = Error.Conflict(
+        "dispute_not_withdrawable", "This dispute can no longer be withdrawn because it has already been reviewed.");
+
     public static readonly Error IdempotencyKeyReused = Error.Conflict(
         "idempotency_key_reused", "This Idempotency-Key was already used for a different request.");
 

@@ -13,7 +13,11 @@ namespace DisputePortal.Modules.Disputes.Controllers;
 [Route("api/v1/disputes")]
 [Authorize(Policy = ApiConventions.CustomerPolicy)]
 [Tags("Disputes")]
-internal sealed class DisputesController(SubmitDisputeHandler submitDispute, DisputeQueries queries, ICurrentCustomer customer) : ControllerBase
+internal sealed class DisputesController(
+    SubmitDisputeHandler submitDispute,
+    WithdrawDisputeHandler withdrawDispute,
+    DisputeQueries queries,
+    ICurrentCustomer customer) : ControllerBase
 {
     private const int MaxIdempotencyKeyLength = 100;
 
@@ -71,6 +75,17 @@ internal sealed class DisputesController(SubmitDisputeHandler submitDispute, Dis
     {
         var result = await queries.GetAsync(customer.CustomerId, id, cancellationToken);
         return result.IsSuccess ? Ok(result.Value) : this.ToProblem(result.Error!);
+    }
+
+    [HttpPost("{id:guid}/withdraw", Name = "WithdrawDispute")]
+    [EndpointSummary("Withdraws the customer's own dispute while it still waits for review. Returns 409 once it has been reviewed.")]
+    [ProducesResponseType<DisputeDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<DisputeDetailDto>> Withdraw(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await withdrawDispute.HandleAsync(customer.CustomerId, id, cancellationToken);
+        return result.IsSuccess ? Ok(DisputeMapper.ToDetail(result.Value)) : this.ToProblem(result.Error!);
     }
 }
 

@@ -145,6 +145,10 @@ internal static class NotificationFactory
                 NotificationCategory.DisputeDeclined,
                 "Your dispute was declined",
                 $"Dispute {message.Reference} for {amount} was declined. {message.OutcomeNote}".TrimEnd()),
+            "Withdrawn" => Build(
+                NotificationCategory.DisputeWithdrawn,
+                "You withdrew your dispute",
+                $"Dispute {message.Reference} for {amount} {where} was withdrawn. Nothing was sent for processing."),
             _ => null,
         };
 

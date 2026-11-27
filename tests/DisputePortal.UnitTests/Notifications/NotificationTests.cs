@@ -16,6 +16,7 @@ public class NotificationFactoryTests
     [InlineData("SentToScheme", nameof(NotificationCategory.DisputeInProgress))]
     [InlineData("Refunded", nameof(NotificationCategory.DisputeRefunded))]
     [InlineData("Declined", nameof(NotificationCategory.DisputeDeclined))]
+    [InlineData("Withdrawn", nameof(NotificationCategory.DisputeWithdrawn))]
     public void Each_dispute_status_produces_its_own_notification(string status, string expectedCategory)
     {
         var messageId = Guid.NewGuid();
@@ -64,6 +65,20 @@ public class NotificationFactoryTests
     public void A_declined_notification_includes_the_reason()
     {
         NotificationFactory.Create(Guid.NewGuid(), Event("Declined", "Already reversed."))!.Body.ShouldEndWith("Already reversed.");
+    }
+
+    [Fact]
+    public void A_withdrawal_is_confirmed_and_says_that_nothing_was_sent()
+    {
+        NotificationFactory.Create(Guid.NewGuid(), Event("Withdrawn"))!.Body
+            .ShouldBe("Dispute DSP-1 for R1,250.00 collected by Old Mutual Insure was withdrawn. Nothing was sent for processing.");
+    }
+
+    [Fact]
+    public void An_agents_rejection_reason_reaches_the_customer_in_the_declined_notification()
+    {
+        NotificationFactory.Create(Guid.NewGuid(), Event("Declined", "The mandate shows this amount was agreed."))!.Body
+            .ShouldBe("Dispute DSP-1 for R1,250.00 was declined. The mandate shows this amount was agreed.");
     }
 
     [Fact]

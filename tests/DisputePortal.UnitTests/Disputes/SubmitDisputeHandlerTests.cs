@@ -250,11 +250,31 @@ internal sealed class InMemoryDisputeRepository : IDisputeRepository
 
     public bool FailNextAddAsDuplicate { get; set; }
 
+    /// <summary>Makes the next save fail the way it does when someone else changed the dispute first.</summary>
+    public bool FailNextSaveAsConflict { get; set; }
+
+    public int Saves { get; private set; }
+
     public Task<IdempotencyRecord?> FindIdempotencyRecordAsync(Guid customerId, string key, CancellationToken cancellationToken) =>
         Task.FromResult(IdempotencyRecords.FirstOrDefault(r => r.CustomerId == customerId && r.Key == key));
 
     public Task<Dispute?> FindAsync(Guid disputeId, Guid customerId, CancellationToken cancellationToken) =>
         Task.FromResult(Disputes.FirstOrDefault(d => d.Id == disputeId && d.CustomerId == customerId));
+
+    public Task<Dispute?> FindForChangeAsync(Guid disputeId, Guid customerId, CancellationToken cancellationToken) =>
+        FindAsync(disputeId, customerId, cancellationToken);
+
+    public Task<bool> TrySaveAsync(CancellationToken cancellationToken)
+    {
+        if (FailNextSaveAsConflict)
+        {
+            FailNextSaveAsConflict = false;
+            return Task.FromResult(false);
+        }
+
+        Saves++;
+        return Task.FromResult(true);
+    }
 
     public Task<bool> ExistsForTransactionAsync(Guid transactionId, CancellationToken cancellationToken) =>
         Task.FromResult(Disputes.Any(d => d.TransactionId == transactionId && d.Status != DisputeStatus.Withdrawn));
