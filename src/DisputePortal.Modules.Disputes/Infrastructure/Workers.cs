@@ -149,7 +149,11 @@ internal sealed class DisputeProcessorWorker(
     }
 }
 
-/// <summary>Delivers outbox messages to their consumers, at least once and in the order they occurred.</summary>
+/// <summary>
+/// Delivers outbox messages to their consumers, at least once. Each cycle takes the oldest waiting messages first,
+/// but order is not guaranteed: a message that failed is retried later, behind newer ones, and several
+/// dispatchers each deliver their own batch at the same time. Consumers must not depend on the order.
+/// </summary>
 internal sealed class OutboxDispatcherWorker(
     IServiceScopeFactory scopeFactory,
     IOptions<DisputeProcessingOptions> options,
