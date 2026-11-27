@@ -116,11 +116,8 @@ if (migrateOnly)
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
-if (!app.Environment.IsDevelopment())
-{
-    app.UseHsts();
-}
-
+// TLS ends at the proxy in front of the API (Caddy in the production Compose overlay, an ingress in Kubernetes),
+// which is where Strict-Transport-Security is set. The API only ever receives plain HTTP, so HSTS here would do nothing.
 app.Use(async (context, next) =>
 {
     context.Response.Headers.XContentTypeOptions = "nosniff";
