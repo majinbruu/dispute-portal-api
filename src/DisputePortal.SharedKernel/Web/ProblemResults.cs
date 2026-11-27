@@ -34,6 +34,7 @@ public static class ProblemResults
         ErrorType.NotFound => StatusCodes.Status404NotFound,
         ErrorType.Conflict => StatusCodes.Status409Conflict,
         ErrorType.Unprocessable => StatusCodes.Status422UnprocessableEntity,
+        ErrorType.Forbidden => StatusCodes.Status403Forbidden,
         _ => StatusCodes.Status500InternalServerError,
     };
 
@@ -43,6 +44,7 @@ public static class ProblemResults
         ErrorType.NotFound => "The resource was not found.",
         ErrorType.Conflict => "The request conflicts with the current state.",
         ErrorType.Unprocessable => "The request cannot be processed.",
+        ErrorType.Forbidden => "You are not allowed to do this.",
         _ => "An unexpected error occurred.",
     };
 }

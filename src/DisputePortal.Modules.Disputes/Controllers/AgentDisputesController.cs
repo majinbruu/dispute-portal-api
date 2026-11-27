@@ -40,8 +40,9 @@ internal sealed class AgentDisputesController(
     }
 
     [HttpPost("{id:guid}/approve", Name = "ApproveDispute")]
-    [EndpointSummary("Approves a dispute that waits for review, which sends it for processing. Returns 409 if it was already reviewed or withdrawn.")]
+    [EndpointSummary("Approves a dispute that waits for review, which sends it for processing. Returns 409 if it was already reviewed or withdrawn, and 403 if the agent raised the dispute themselves.")]
     [ProducesResponseType<AgentDisputeDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<AgentDisputeDetailDto>> Approve(Guid id, CancellationToken cancellationToken)
@@ -51,9 +52,10 @@ internal sealed class AgentDisputesController(
     }
 
     [HttpPost("{id:guid}/reject", Name = "RejectDispute")]
-    [EndpointSummary("Rejects a dispute that waits for review. The reason is shown to the customer as the outcome. Returns 409 if it was already reviewed or withdrawn.")]
+    [EndpointSummary("Rejects a dispute that waits for review. The reason is shown to the customer as the outcome. Returns 409 if it was already reviewed or withdrawn, and 403 if the agent raised the dispute themselves.")]
     [ProducesResponseType<AgentDisputeDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<AgentDisputeDetailDto>> Reject(Guid id, [FromBody] RejectDisputeRequest request, CancellationToken cancellationToken)
@@ -64,9 +66,10 @@ internal sealed class AgentDisputesController(
 
     [HttpPost("{id:guid}/comments", Name = "AddDisputeCommentAsAgent")]
     [EnableRateLimiting(ApiConventions.DisputeCommentRateLimit)]
-    [EndpointSummary("Adds an agent's comment to a dispute while it is open. The customer is notified in their inbox. Returns 409 once the dispute is closed.")]
+    [EndpointSummary("Adds an agent's comment to a dispute while it is open. The customer is notified in their inbox. Returns 409 once the dispute is closed, and 403 if the agent raised the dispute themselves.")]
     [ProducesResponseType<AgentDisputeDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status429TooManyRequests)]

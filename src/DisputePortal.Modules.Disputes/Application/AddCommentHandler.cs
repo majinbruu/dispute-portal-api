@@ -19,6 +19,13 @@ internal sealed class AddCommentHandler(IDisputeRepository disputes, TimeProvide
     public async Task<Result<Dispute>> ByAgentAsync(Guid agentId, Guid disputeId, string body, CancellationToken cancellationToken)
     {
         var dispute = await disputes.FindForChangeByAgentAsync(disputeId, cancellationToken);
+
+        // As the customer they can still comment through the customer's endpoint. Here the comment would speak for the bank.
+        if (dispute is not null && dispute.WasRaisedBy(agentId))
+        {
+            return DisputeErrors.OwnDispute;
+        }
+
         return await AddAsync(dispute, DisputeActor.Agent(agentId), body, cancellationToken);
     }
 

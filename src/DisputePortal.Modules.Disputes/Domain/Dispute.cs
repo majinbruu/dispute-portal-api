@@ -241,6 +241,12 @@ internal sealed class Dispute
 
     public bool IsCompleted => !IsOpen;
 
+    /// <summary>
+    /// Nobody acts as the bank on their own dispute. One user can hold both the customer and the agent role,
+    /// so the roles alone do not rule this out.
+    /// </summary>
+    public bool WasRaisedBy(Guid subjectId) => CustomerId == subjectId;
+
     /// <param name="comment">Optional. When given it becomes the first comment in the thread.</param>
     public static Dispute Submit(
         Guid id,
@@ -310,6 +316,7 @@ internal sealed class Dispute
             throw new DisputeRuleException("A customer cannot approve a dispute.");
         }
 
+        EnsureNotOwnDispute(approvedBy);
         EnsureStatus(DisputeStatus.Submitted, DisputeStatus.SentToScheme);
 
         Status = DisputeStatus.SentToScheme;
@@ -327,12 +334,14 @@ internal sealed class Dispute
             throw new DisputeRuleException($"A rejection reason must be between 1 and {MaxRejectionReasonLength} characters.");
         }
 
+        var agent = DisputeActor.Agent(agentId);
+        EnsureNotOwnDispute(agent);
         EnsureStatus(DisputeStatus.Submitted, DisputeStatus.Declined);
 
         Status = DisputeStatus.Declined;
         CompletedAt = now;
         OutcomeNote = note;
-        Record(DisputeStatus.Declined, note, DisputeActor.Agent(agentId), now);
+        Record(DisputeStatus.Declined, note, agent, now);
     }
 
     /// <summary>The customer takes the dispute back. Only possible while it waits for an agent, so nothing was sent.</summary>
@@ -380,6 +389,8 @@ internal sealed class Dispute
             throw new DisputeRuleException("Only the customer who raised a dispute can comment on it as the customer.");
         }
 
+        EnsureNotOwnDispute(author);
+
         var comment = new DisputeComment(Id, author, body, now);
         _comments.Add(comment);
 
@@ -392,6 +403,14 @@ internal sealed class Dispute
     }
 
     public void ClearDomainEvents() => _domainEvents.Clear();
+
+    private void EnsureNotOwnDispute(DisputeActor actor)
+    {
+        if (actor.Type == DisputeActorType.Agent && actor.SubjectId is { } agentId && WasRaisedBy(agentId))
+        {
+            throw new DisputeRuleException("An agent cannot review or comment on a dispute they raised themselves.");
+        }
+    }
 
     private void EnsureStatus(DisputeStatus required, DisputeStatus target)
     {

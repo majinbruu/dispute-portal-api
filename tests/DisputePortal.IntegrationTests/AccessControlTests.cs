@@ -156,6 +156,29 @@ public class AccessControlTests(PortalFixture portal) : PortalTest(portal)
     }
 
     [Fact]
+    public async Task A_user_with_both_roles_cannot_review_or_answer_their_own_dispute_as_an_agent()
+    {
+        // Both policies let this user in, so the roles alone do not stop them deciding their own dispute.
+        var dispute = await SiphoRaisesADisputeAsync();
+        var siphoAsAgent = Portal.ClientFor(DemoData.Sipho, ApiConventions.CustomerRole, ApiConventions.AgentRole);
+        var path = $"{AgentQueue}/{dispute.Id}";
+
+        var approve = await siphoAsAgent.PostAsync($"{path}/approve");
+        var reject = await siphoAsAgent.PostAsync($"{path}/reject", new RejectDisputeRequest("Not valid."));
+        var comment = await siphoAsAgent.PostAsync($"{path}/comments", new AddCommentRequest("Approved, no questions."));
+
+        await approve.ShouldBeProblemAsync(HttpStatusCode.Forbidden, "own_dispute");
+        await reject.ShouldBeProblemAsync(HttpStatusCode.Forbidden, "own_dispute");
+        await comment.ShouldBeProblemAsync(HttpStatusCode.Forbidden, "own_dispute");
+        var stored = await Portal.WithDisputesAsync(db => db.Disputes.Include(d => d.Comments).SingleAsync());
+        stored.Status.ShouldBe(DisputeStatus.Submitted);
+        stored.Comments.ShouldBeEmpty();
+
+        // Another agent reviews it as usual.
+        (await Portal.Agent().PostAsync($"{path}/approve")).StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
     public async Task A_customer_cannot_read_another_customers_transaction()
     {
         var response = await Portal.Thandi().GetAsync($"/api/v1/transactions/{DemoData.SiphoPendingCardId}");

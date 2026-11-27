@@ -103,6 +103,35 @@ public class ReviewDisputeHandlerTests
     }
 
     [Fact]
+    public async Task An_agent_cannot_approve_or_reject_a_dispute_they_raised_themselves()
+    {
+        // One user can hold both roles. Their agent ID and their customer ID are then the same token subject.
+        var dispute = Add(DisputeTestData.Submitted());
+        var eventsBefore = dispute.Events.Count;
+
+        var approve = await Handler.ApproveAsync(DisputeTestData.Customer, dispute.Id, CancellationToken.None);
+        var reject = await Handler.RejectAsync(DisputeTestData.Customer, dispute.Id, "Not valid.", CancellationToken.None);
+
+        approve.Error!.Type.ShouldBe(ErrorType.Forbidden);
+        approve.Error.Code.ShouldBe("own_dispute");
+        reject.Error!.Type.ShouldBe(ErrorType.Forbidden);
+        reject.Error.Code.ShouldBe("own_dispute");
+        dispute.Status.ShouldBe(DisputeStatus.Submitted);
+        dispute.Events.Count.ShouldBe(eventsBefore);
+        _disputes.Saves.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Reviewing_your_own_dispute_is_refused_whatever_its_status()
+    {
+        var dispute = Add(WithdrawDisputeHandlerTests.InStatus(DisputeStatus.Refunded));
+
+        var approve = await Handler.ApproveAsync(DisputeTestData.Customer, dispute.Id, CancellationToken.None);
+
+        approve.Error!.Code.ShouldBe("own_dispute");
+    }
+
+    [Fact]
     public async Task A_dispute_that_does_not_exist_is_not_found()
     {
         var approve = await Handler.ApproveAsync(Agent, Guid.NewGuid(), CancellationToken.None);

@@ -46,6 +46,22 @@ internal static class DisputeTestData
 public class DisputeLifecycleTests
 {
     [Fact]
+    public void The_aggregate_refuses_an_agent_acting_on_a_dispute_they_raised_themselves()
+    {
+        // The handlers answer this with a 403 before it gets here. The aggregate holds the rule regardless.
+        var dispute = DisputeTestData.Submitted();
+        var self = DisputeActor.Agent(DisputeTestData.Customer);
+
+        dispute.WasRaisedBy(DisputeTestData.Customer).ShouldBeTrue();
+        dispute.WasRaisedBy(DisputeTestData.Agent).ShouldBeFalse();
+        Should.Throw<DisputeRuleException>(() => dispute.MarkSentToScheme("{}", self, DisputeTestData.Now));
+        Should.Throw<DisputeRuleException>(() => dispute.Reject(DisputeTestData.Customer, "Not valid.", DisputeTestData.Now));
+        Should.Throw<DisputeRuleException>(() => dispute.AddComment(self, "Approved.", DisputeTestData.Now));
+        dispute.Status.ShouldBe(DisputeStatus.Submitted);
+        dispute.Comments.ShouldBeEmpty();
+    }
+
+    [Fact]
     public void A_new_dispute_is_submitted_for_the_full_amount_with_a_first_event()
     {
         var dispute = DisputeTestData.Submitted();

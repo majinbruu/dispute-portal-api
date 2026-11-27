@@ -52,6 +52,22 @@ public class AddCommentHandlerTests
     }
 
     [Fact]
+    public async Task An_agent_cannot_comment_as_the_bank_on_a_dispute_they_raised_themselves()
+    {
+        // One user can hold both roles. As the customer they may still comment on their own dispute.
+        var dispute = Add(DisputeTestData.Submitted());
+
+        var asAgent = await Handler.ByAgentAsync(Customer, dispute.Id, "Approved, no questions.", CancellationToken.None);
+        var asCustomer = await Handler.ByCustomerAsync(Customer, dispute.Id, "Any news on this?", CancellationToken.None);
+
+        asAgent.Error!.Type.ShouldBe(ErrorType.Forbidden);
+        asAgent.Error.Code.ShouldBe("own_dispute");
+        asCustomer.IsSuccess.ShouldBeTrue();
+        dispute.Comments.ShouldHaveSingleItem().AuthorType.ShouldBe(DisputeActorType.Customer);
+        _disputes.Saves.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task An_agents_comment_is_published_for_the_customers_inbox_in_the_same_save()
     {
         var dispute = Add(DisputeTestData.Submitted());

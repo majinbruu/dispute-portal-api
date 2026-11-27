@@ -115,6 +115,10 @@ internal static class DisputeErrors
     public static readonly Error NotAwaitingReview = Error.Conflict(
         "dispute_not_awaiting_review", "This dispute is no longer waiting for review. It was already approved, rejected or withdrawn.");
 
+    /// <summary>A user may hold both roles. The agent role never extends to the disputes that user raised as a customer.</summary>
+    public static readonly Error OwnDispute = Error.Forbidden(
+        "own_dispute", "You raised this dispute yourself, so another agent must handle it.");
+
     public static readonly Error Closed = Error.Conflict(
         "dispute_closed", "Comments can only be added while a dispute is open.");
 
