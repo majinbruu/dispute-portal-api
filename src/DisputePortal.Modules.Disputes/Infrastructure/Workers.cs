@@ -28,8 +28,7 @@ internal abstract class PollingWorker(IServiceScopeFactory scopeFactory, IOption
         {
             try
             {
-                await using var scope = scopeFactory.CreateAsyncScope();
-                await RunCycleAsync(scope.ServiceProvider, stoppingToken);
+                await RunOnceAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -41,6 +40,13 @@ internal abstract class PollingWorker(IServiceScopeFactory scopeFactory, IOption
                 Logger.LogError(exception, "{Worker} cycle failed", GetType().Name);
             }
         }
+    }
+
+    /// <summary>Runs one cycle in a scope of its own. The loop above does this on every tick; the integration tests call it directly.</summary>
+    internal async Task RunOnceAsync(CancellationToken cancellationToken)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        await RunCycleAsync(scope.ServiceProvider, cancellationToken);
     }
 
     protected abstract Task RunCycleAsync(IServiceProvider services, CancellationToken cancellationToken);
@@ -201,7 +207,8 @@ internal sealed class IdempotencyKeyCleanupWorker(
         }
     }
 
-    private async Task DeleteExpiredAsync(CancellationToken cancellationToken)
+    /// <summary>One clean-up pass. The loop above runs it every hour; the integration tests call it directly.</summary>
+    internal async Task DeleteExpiredAsync(CancellationToken cancellationToken)
     {
         try
         {

@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="DisputePortal.UnitTests" />
+    <InternalsVisibleTo Include="DisputePortal.IntegrationTests" />
   </ItemGroup>
 
 </Project>
