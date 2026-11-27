@@ -13,7 +13,11 @@
     "realm": [
       {
         "name": "customer",
-        "description": "A bank customer who can view and dispute their own debit orders."
+        "description": "A bank customer who can view and dispute their own debit orders and card transactions."
+      },
+      {
+        "name": "agent",
+        "description": "A bank agent who reviews disputes across all customers: approve, reject and comment."
       }
     ]
   },
@@ -129,6 +133,17 @@
       "emailVerified": true,
       "enabled": true,
       "realmRoles": ["customer"],
+      "credentials": [{ "type": "password", "value": "AcmeDemo!2026", "temporary": false }]
+    },
+    {
+      "id": "8f14e45f-ceea-4672-a9d6-5f0c1d2e3a04",
+      "username": "zanele",
+      "firstName": "Zanele",
+      "lastName": "Khumalo",
+      "email": "zanele@acmebank.example",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": ["agent"],
       "credentials": [{ "type": "password", "value": "AcmeDemo!2026", "temporary": false }]
     }
   ]
