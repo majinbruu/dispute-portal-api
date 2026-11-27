@@ -3,38 +3,59 @@ using DisputePortal.Modules.Transactions.Domain;
 
 namespace DisputePortal.Modules.Transactions.Application;
 
-internal static class DebitOrderMapper
+internal static class TransactionMapper
 {
-    public static DebitOrderDto ToDto(DebitOrder debitOrder, DateOnly today, TransactionDisputeStatus? dispute)
+    public static TransactionDto ToDto(Transaction transaction, DateOnly today, TransactionDisputeStatus? dispute)
     {
-        var eligibility = debitOrder.EvaluateEligibility(today, alreadyDisputed: dispute is not null);
+        var eligibility = transaction.EvaluateEligibility(today, alreadyDisputed: dispute is not null);
 
-        return new DebitOrderDto(
-            debitOrder.Id,
-            debitOrder.TransactionId,
-            debitOrder.EndToEndId,
-            debitOrder.CounterpartyName,
-            debitOrder.CreditorShortName,
-            debitOrder.StatementText,
-            debitOrder.Amount,
-            debitOrder.Currency,
-            debitOrder.EffectiveDate,
-            debitOrder.SequenceType,
-            debitOrder.Status,
-            debitOrder.StatusReasonCode,
-            StatusReasons.Describe(debitOrder.StatusReasonCode),
-            debitOrder.AccountMasked,
-            debitOrder.MandateId,
-            debitOrder.MandateType,
-            debitOrder.MandateReference,
-            debitOrder.ContractReference,
+        return new TransactionDto(
+            transaction.Id,
+            transaction.Type,
+            transaction.CounterpartyName,
+            transaction.Amount,
+            transaction.Currency,
+            transaction.EffectiveDate,
+            transaction.AccountMasked,
             new DisputeEligibilityDto(
                 eligibility == DisputeEligibility.Eligible,
                 eligibility,
-                EligibilityMessages.For(eligibility, debitOrder),
-                debitOrder.LastDisputeDate),
-            dispute is null ? null : new DisputeLinkDto(dispute.DisputeId, dispute.Reference, dispute.Status));
+                EligibilityMessages.For(eligibility, transaction),
+                transaction.LastDisputeDate),
+            dispute is null ? null : new DisputeLinkDto(dispute.DisputeId, dispute.Reference, dispute.Status),
+            transaction is DebitOrder debitOrder ? ToDetail(debitOrder) : null,
+            transaction is CardTransaction card ? ToDetail(card) : null);
     }
+
+    private static DebitOrderDetailDto ToDetail(DebitOrder debitOrder) => new(
+        debitOrder.TransactionId,
+        debitOrder.EndToEndId,
+        debitOrder.CreditorShortName,
+        debitOrder.StatementText,
+        debitOrder.SequenceType,
+        debitOrder.Status,
+        debitOrder.StatusReasonCode,
+        StatusReasons.Describe(debitOrder.StatusReasonCode),
+        debitOrder.MandateType,
+        debitOrder.MandateId,
+        debitOrder.MandateReference,
+        debitOrder.ContractReference);
+
+    private static CardDetailDto ToDetail(CardTransaction card) => new(
+        card.CardNumberMasked,
+        card.Scheme,
+        card.Kind,
+        card.MerchantCity,
+        card.MerchantCountry,
+        card.MerchantCategoryCode,
+        card.TransactionDate,
+        card.PostingDate,
+        card.AuthorisationCode,
+        card.AcquirerReferenceNumber,
+        card.EntryMode,
+        card.Verification,
+        card.Status,
+        card.RefundedAmount);
 
     public static MandateDto ToDto(Mandate mandate) => new(
         mandate.Id,

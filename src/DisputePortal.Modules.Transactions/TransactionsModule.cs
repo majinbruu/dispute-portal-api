@@ -17,10 +17,10 @@ public static class TransactionsModule
             .UseSnakeCaseNamingConvention());
 
         services.AddScoped<ITransactionStore, EfTransactionStore>();
-        services.AddScoped<DebitOrderService>();
+        services.AddScoped<TransactionService>();
         services.AddScoped<ITransactionDirectory, TransactionDirectory>();
         services.AddScoped<TransactionsSeeder>();
-        services.AddScoped<IValidator<DebitOrderListQuery>, DebitOrderListQueryValidator>();
+        services.AddScoped<IValidator<TransactionListQuery>, TransactionListQueryValidator>();
         services.AddScoped<IValidator<MandateListQuery>, MandateListQueryValidator>();
         return services;
     }

@@ -50,7 +50,7 @@ builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document,
     document.Info.Title = "ACME Bank Dispute Portal API";
     document.Info.Version = "v1";
     document.Info.Description =
-        "Debit orders, mandates, disputes and notifications for the signed-in customer. " +
+        "Transactions (debit orders and card), mandates, disputes and notifications for the signed-in customer. " +
         "All endpoints under /api require a Keycloak access token with the 'customer' role. " +
         "Errors are RFC 9457 problem documents with a stable 'code' and a 'traceId'.";
 

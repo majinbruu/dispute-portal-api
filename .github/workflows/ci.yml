@@ -84,7 +84,7 @@ jobs:
           done
           echo "The API did not become ready" && cat api.log && exit 1
       - name: Protected endpoints reject anonymous calls
-        run: test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://localhost:5080/api/v1/debit-orders)" = "401"
+        run: test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://localhost:5080/api/v1/transactions)" = "401"
 
   image:
     name: Docker image

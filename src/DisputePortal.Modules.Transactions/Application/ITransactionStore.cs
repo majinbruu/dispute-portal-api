@@ -6,7 +6,8 @@ namespace DisputePortal.Modules.Transactions.Application;
 /// <summary>Persistence port. Every read is scoped to a customer, so a query cannot forget the ownership filter.</summary>
 internal interface ITransactionStore
 {
-    Task<PagedResult<DebitOrder>> ListAsync(Guid customerId, DebitOrderFilter filter, PageRequest page, CancellationToken cancellationToken);
+    /// <summary>Lists transactions of the one type the filter names, each loaded with the details of that type.</summary>
+    Task<PagedResult<Transaction>> ListAsync(Guid customerId, TransactionFilter filter, PageRequest page, CancellationToken cancellationToken);
 
     Task<Transaction?> FindAsync(Guid transactionId, Guid customerId, CancellationToken cancellationToken);
 

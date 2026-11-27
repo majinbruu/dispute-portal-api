@@ -7,42 +7,32 @@ namespace DisputePortal.Modules.Transactions.Infrastructure;
 
 internal sealed class EfTransactionStore(TransactionsDbContext db) : ITransactionStore
 {
-    public async Task<PagedResult<DebitOrder>> ListAsync(Guid customerId, DebitOrderFilter filter, PageRequest page, CancellationToken cancellationToken)
+    public Task<PagedResult<Transaction>> ListAsync(Guid customerId, TransactionFilter filter, PageRequest page, CancellationToken cancellationToken)
     {
-        var query = db.DebitOrders.AsNoTracking().Where(d => d.CustomerId == customerId);
-
-        if (filter.Status is { } status)
+        // Querying the set of one type joins the shared table to that type's table only.
+        if (filter.Type == TransactionType.Card)
         {
-            query = query.Where(d => d.Status == status);
+            var cards = db.CardTransactions.AsNoTracking().Where(c => c.CustomerId == customerId);
+            if (filter.CardStatus is { } cardStatus)
+            {
+                cards = cards.Where(c => c.Status == cardStatus);
+            }
+
+            return PageAsync(cards, filter, page, cancellationToken);
         }
 
+        var debitOrders = db.DebitOrders.AsNoTracking().Where(d => d.CustomerId == customerId);
         if (filter.MandateType is { } mandateType)
         {
-            query = query.Where(d => d.MandateType == mandateType);
+            debitOrders = debitOrders.Where(d => d.MandateType == mandateType);
         }
 
-        if (filter.From is { } from)
+        if (filter.DebitOrderStatus is { } debitOrderStatus)
         {
-            query = query.Where(d => d.EffectiveDate >= from);
+            debitOrders = debitOrders.Where(d => d.Status == debitOrderStatus);
         }
 
-        if (filter.To is { } to)
-        {
-            query = query.Where(d => d.EffectiveDate <= to);
-        }
-
-        // The ID is always the last sort key so paging is stable when dates or amounts repeat.
-        query = filter.Sort switch
-        {
-            DebitOrderSort.ActionDateAscending => query.OrderBy(d => d.EffectiveDate).ThenBy(d => d.Id),
-            DebitOrderSort.AmountDescending => query.OrderByDescending(d => d.Amount).ThenBy(d => d.Id),
-            DebitOrderSort.AmountAscending => query.OrderBy(d => d.Amount).ThenBy(d => d.Id),
-            _ => query.OrderByDescending(d => d.EffectiveDate).ThenBy(d => d.Id),
-        };
-
-        var total = await query.CountAsync(cancellationToken);
-        var items = await query.Skip(page.Skip).Take(page.PageSize).ToListAsync(cancellationToken);
-        return new PagedResult<DebitOrder>(items, page.Page, page.PageSize, total);
+        return PageAsync(debitOrders, filter, page, cancellationToken);
     }
 
     public Task<Transaction?> FindAsync(Guid transactionId, Guid customerId, CancellationToken cancellationToken) =>
@@ -66,4 +56,33 @@ internal sealed class EfTransactionStore(TransactionsDbContext db) : ITransactio
 
     public Task<Mandate?> FindMandateAsync(Guid mandateId, Guid customerId, CancellationToken cancellationToken) =>
         db.Mandates.AsNoTracking().FirstOrDefaultAsync(m => m.Id == mandateId && m.CustomerId == customerId, cancellationToken);
+
+    /// <summary>The date range, sorting and paging are the same for every type, because they only use the shared columns.</summary>
+    private static async Task<PagedResult<Transaction>> PageAsync<T>(
+        IQueryable<T> query, TransactionFilter filter, PageRequest page, CancellationToken cancellationToken)
+        where T : Transaction
+    {
+        if (filter.From is { } from)
+        {
+            query = query.Where(t => t.EffectiveDate >= from);
+        }
+
+        if (filter.To is { } to)
+        {
+            query = query.Where(t => t.EffectiveDate <= to);
+        }
+
+        // The ID is always the last sort key so paging is stable when dates or amounts repeat.
+        query = filter.Sort switch
+        {
+            TransactionSort.EffectiveDateAscending => query.OrderBy(t => t.EffectiveDate).ThenBy(t => t.Id),
+            TransactionSort.AmountDescending => query.OrderByDescending(t => t.Amount).ThenBy(t => t.Id),
+            TransactionSort.AmountAscending => query.OrderBy(t => t.Amount).ThenBy(t => t.Id),
+            _ => query.OrderByDescending(t => t.EffectiveDate).ThenBy(t => t.Id),
+        };
+
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query.Skip(page.Skip).Take(page.PageSize).ToListAsync(cancellationToken);
+        return new PagedResult<Transaction>(items, page.Page, page.PageSize, total);
+    }
 }
