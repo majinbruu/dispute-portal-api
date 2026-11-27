@@ -29,24 +29,31 @@ namespace DisputePortal.Modules.Disputes.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<DateOnly>("ActionDate")
-                        .HasColumnType("date")
-                        .HasColumnName("action_date");
+                    b.Property<string>("AccountMasked")
+                        .IsRequired()
+                        .HasMaxLength(34)
+                        .HasColumnType("character varying(34)")
+                        .HasColumnName("account_masked");
 
                     b.Property<decimal>("Amount")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)")
                         .HasColumnName("amount");
 
+                    b.Property<string>("CardScheme")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("card_scheme");
+
                     b.Property<DateTimeOffset?>("CompletedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("completed_at");
 
-                    b.Property<string>("CreditorName")
+                    b.Property<string>("CounterpartyName")
                         .IsRequired()
                         .HasMaxLength(140)
                         .HasColumnType("character varying(140)")
-                        .HasColumnName("creditor_name");
+                        .HasColumnName("counterparty_name");
 
                     b.Property<string>("Currency")
                         .IsRequired()
@@ -59,44 +66,29 @@ namespace DisputePortal.Modules.Disputes.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("customer_id");
 
-                    b.Property<Guid>("DebitOrderId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("debit_order_id");
-
-                    b.Property<string>("DebtorAccountMasked")
-                        .IsRequired()
-                        .HasMaxLength(34)
-                        .HasColumnType("character varying(34)")
-                        .HasColumnName("debtor_account_masked");
-
                     b.Property<string>("MandateReference")
-                        .IsRequired()
                         .HasMaxLength(35)
                         .HasColumnType("character varying(35)")
                         .HasColumnName("mandate_reference");
 
                     b.Property<string>("MandateType")
-                        .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("mandate_type");
 
                     b.Property<string>("OriginalEndToEndId")
-                        .IsRequired()
                         .HasMaxLength(35)
                         .HasColumnType("character varying(35)")
                         .HasColumnName("original_end_to_end_id");
-
-                    b.Property<string>("OriginalTransactionId")
-                        .IsRequired()
-                        .HasMaxLength(35)
-                        .HasColumnType("character varying(35)")
-                        .HasColumnName("original_transaction_id");
 
                     b.Property<string>("OutcomeNote")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
                         .HasColumnName("outcome_note");
+
+                    b.Property<DateOnly?>("PostingDate")
+                        .HasColumnType("date")
+                        .HasColumnName("posting_date");
 
                     b.Property<string>("ReasonCode")
                         .IsRequired()
@@ -104,15 +96,27 @@ namespace DisputePortal.Modules.Disputes.Infrastructure.Migrations
                         .HasColumnType("character varying(4)")
                         .HasColumnName("reason_code");
 
+                    b.Property<string>("ReasonId")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("reason_id");
+
                     b.Property<string>("Reference")
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)")
                         .HasColumnName("reference");
 
-                    b.Property<string>("ReturnPayload")
+                    b.Property<string>("SchemePayload")
                         .HasColumnType("jsonb")
-                        .HasColumnName("return_payload");
+                        .HasColumnName("scheme_payload");
+
+                    b.Property<string>("SchemeReference")
+                        .IsRequired()
+                        .HasMaxLength(35)
+                        .HasColumnType("character varying(35)")
+                        .HasColumnName("scheme_reference");
 
                     b.Property<DateTimeOffset?>("SentToSchemeAt")
                         .HasColumnType("timestamp with time zone")
@@ -128,6 +132,20 @@ namespace DisputePortal.Modules.Disputes.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("submitted_at");
 
+                    b.Property<DateOnly>("TransactionDate")
+                        .HasColumnType("date")
+                        .HasColumnName("transaction_date");
+
+                    b.Property<Guid>("TransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("transaction_id");
+
+                    b.Property<string>("TransactionType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("transaction_type");
+
                     b.Property<uint>("Version")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
@@ -137,13 +155,13 @@ namespace DisputePortal.Modules.Disputes.Infrastructure.Migrations
                     b.HasKey("Id")
                         .HasName("pk_disputes");
 
-                    b.HasIndex("DebitOrderId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_disputes_debit_order_id");
-
                     b.HasIndex("Reference")
                         .IsUnique()
                         .HasDatabaseName("ix_disputes_reference");
+
+                    b.HasIndex("TransactionId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_disputes_transaction_id");
 
                     b.HasIndex("CustomerId", "SubmittedAt")
                         .IsDescending(false, true)

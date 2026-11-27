@@ -161,7 +161,7 @@ internal sealed class OutboxDispatcherWorker(
 
 /// <summary>
 /// Deletes idempotency keys past their retention period so the table does not grow for ever.
-/// A key only has to outlive the client's retries. After that the unique index on the debit order
+/// A key only has to outlive the client's retries. After that the unique index on the transaction
 /// still stops a second dispute. The delete is safe to run from several replicas at once.
 /// </summary>
 internal sealed class IdempotencyKeyCleanupWorker(

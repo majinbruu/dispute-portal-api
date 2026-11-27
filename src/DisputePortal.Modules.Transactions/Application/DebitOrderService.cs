@@ -5,14 +5,14 @@ using DisputePortal.SharedKernel;
 namespace DisputePortal.Modules.Transactions.Application;
 
 /// <summary>Read use cases for debit orders and mandates.</summary>
-internal sealed class DebitOrderService(IDebitOrderStore store, IDisputeStatusProvider disputes, TimeProvider timeProvider)
+internal sealed class DebitOrderService(ITransactionStore store, IDisputeStatusProvider disputes, TimeProvider timeProvider)
 {
     public async Task<PagedResult<DebitOrderDto>> ListAsync(Guid customerId, DebitOrderListQuery query, CancellationToken cancellationToken)
     {
         var filter = new DebitOrderFilter(query.Status, query.MandateType, query.From, query.To, DebitOrderSorts.Parse(query.Sort));
         var page = await store.ListAsync(customerId, filter, new PageRequest(query.Page, query.PageSize), cancellationToken);
 
-        var disputeStatuses = await disputes.GetForDebitOrdersAsync(page.Items.Select(d => d.Id).ToList(), cancellationToken);
+        var disputeStatuses = await disputes.GetForTransactionsAsync(page.Items.Select(d => d.Id).ToList(), cancellationToken);
         var today = SouthAfricanTime.Today(timeProvider);
 
         return page.Map(debitOrder => DebitOrderMapper.ToDto(debitOrder, today, disputeStatuses.GetValueOrDefault(debitOrder.Id)));
@@ -20,13 +20,12 @@ internal sealed class DebitOrderService(IDebitOrderStore store, IDisputeStatusPr
 
     public async Task<Result<DebitOrderDto>> GetAsync(Guid customerId, Guid debitOrderId, CancellationToken cancellationToken)
     {
-        var debitOrder = await store.FindAsync(debitOrderId, customerId, cancellationToken);
-        if (debitOrder is null)
+        if (await store.FindAsync(debitOrderId, customerId, cancellationToken) is not DebitOrder debitOrder)
         {
             return DebitOrderErrors.DebitOrderNotFound;
         }
 
-        var disputeStatuses = await disputes.GetForDebitOrdersAsync([debitOrder.Id], cancellationToken);
+        var disputeStatuses = await disputes.GetForTransactionsAsync([debitOrder.Id], cancellationToken);
         return Result<DebitOrderDto>.Success(
             DebitOrderMapper.ToDto(debitOrder, SouthAfricanTime.Today(timeProvider), disputeStatuses.GetValueOrDefault(debitOrder.Id)));
     }
@@ -42,46 +41,6 @@ internal sealed class DebitOrderService(IDebitOrderStore store, IDisputeStatusPr
         var mandate = await store.FindMandateAsync(mandateId, customerId, cancellationToken);
         return mandate is null ? DebitOrderErrors.MandateNotFound : Result<MandateDto>.Success(DebitOrderMapper.ToDto(mandate));
     }
-}
-
-/// <summary>Implements the contract other modules use to look up a debit order before disputing it.</summary>
-internal sealed class DebitOrderDirectory(IDebitOrderStore store, TimeProvider timeProvider) : IDebitOrderDirectory
-{
-    public async Task<DebitOrderForDispute?> FindAsync(Guid debitOrderId, Guid customerId, CancellationToken cancellationToken)
-    {
-        var debitOrder = await store.FindAsync(debitOrderId, customerId, cancellationToken);
-        if (debitOrder is null)
-        {
-            return null;
-        }
-
-        // Whether a dispute already exists is the Disputes module's knowledge, so it is not evaluated here.
-        var eligibility = debitOrder.EvaluateEligibility(SouthAfricanTime.Today(timeProvider), alreadyDisputed: false);
-        var eligible = eligibility == DisputeEligibility.Eligible;
-
-        return new DebitOrderForDispute(
-            debitOrder.Id,
-            debitOrder.CustomerId,
-            debitOrder.TransactionId,
-            debitOrder.EndToEndId,
-            debitOrder.Amount,
-            debitOrder.Currency,
-            debitOrder.EffectiveDate,
-            debitOrder.MandateType.ToString(),
-            debitOrder.MandateReference,
-            debitOrder.CounterpartyName,
-            debitOrder.AccountMasked,
-            eligible ? null : ToErrorCode(eligibility),
-            eligible ? null : EligibilityMessages.For(eligibility, debitOrder));
-    }
-
-    private static string ToErrorCode(DisputeEligibility eligibility) => eligibility switch
-    {
-        DisputeEligibility.WithinMandateTerms => "within_mandate_terms",
-        DisputeEligibility.CollectionRejected => "collection_rejected",
-        DisputeEligibility.DisputeWindowClosed => "dispute_window_closed",
-        _ => "not_disputable",
-    };
 }
 
 internal static class DebitOrderErrors

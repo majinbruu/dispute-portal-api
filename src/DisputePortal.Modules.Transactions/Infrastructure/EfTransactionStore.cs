@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DisputePortal.Modules.Transactions.Infrastructure;
 
-internal sealed class EfDebitOrderStore(TransactionsDbContext db) : IDebitOrderStore
+internal sealed class EfTransactionStore(TransactionsDbContext db) : ITransactionStore
 {
     public async Task<PagedResult<DebitOrder>> ListAsync(Guid customerId, DebitOrderFilter filter, PageRequest page, CancellationToken cancellationToken)
     {
@@ -45,8 +45,8 @@ internal sealed class EfDebitOrderStore(TransactionsDbContext db) : IDebitOrderS
         return new PagedResult<DebitOrder>(items, page.Page, page.PageSize, total);
     }
 
-    public Task<DebitOrder?> FindAsync(Guid debitOrderId, Guid customerId, CancellationToken cancellationToken) =>
-        db.DebitOrders.AsNoTracking().FirstOrDefaultAsync(d => d.Id == debitOrderId && d.CustomerId == customerId, cancellationToken);
+    public Task<Transaction?> FindAsync(Guid transactionId, Guid customerId, CancellationToken cancellationToken) =>
+        db.Transactions.AsNoTracking().FirstOrDefaultAsync(t => t.Id == transactionId && t.CustomerId == customerId, cancellationToken);
 
     public async Task<PagedResult<Mandate>> ListMandatesAsync(Guid customerId, MandateType? type, PageRequest page, CancellationToken cancellationToken)
     {

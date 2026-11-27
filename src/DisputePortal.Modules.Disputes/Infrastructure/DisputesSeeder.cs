@@ -10,7 +10,7 @@ namespace DisputePortal.Modules.Disputes.Infrastructure;
 /// Seeds three demo disputes for the first demo customer: one already refunded, one that the worker will
 /// refund shortly after start-up, and one that the simulated scheme will decline.
 /// </summary>
-internal sealed class DisputesSeeder(DisputesDbContext db, IDebitOrderDirectory debitOrders, TimeProvider timeProvider)
+internal sealed class DisputesSeeder(DisputesDbContext db, ITransactionDirectory transactions, TimeProvider timeProvider)
 {
     public async Task SeedAsync(CancellationToken cancellationToken)
     {
@@ -21,7 +21,7 @@ internal sealed class DisputesSeeder(DisputesDbContext db, IDebitOrderDirectory 
 
         var now = timeProvider.GetUtcNow();
 
-        var refunded = await SubmitAsync(DemoData.RefundedDebitOrderId, "MD01", now.AddDays(-9), cancellationToken);
+        var refunded = await SubmitAsync(DemoData.RefundedDebitOrderId, "not_authorised", now.AddDays(-9), cancellationToken);
         if (refunded is not null)
         {
             var sentAt = now.AddDays(-9).AddMinutes(2);
@@ -29,16 +29,16 @@ internal sealed class DisputesSeeder(DisputesDbContext db, IDebitOrderDirectory 
             refunded.MarkRefunded(sentAt.AddMinutes(3));
         }
 
-        await SubmitAsync(DemoData.PendingDebitOrderId, "AM09", now, cancellationToken);
-        await SubmitAsync(DemoData.DeclinedDebitOrderId, "MD06", now, cancellationToken);
+        await SubmitAsync(DemoData.PendingDebitOrderId, "incorrect_amount", now, cancellationToken);
+        await SubmitAsync(DemoData.DeclinedDebitOrderId, "cancelled", now, cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task<Dispute?> SubmitAsync(Guid debitOrderId, string reasonCode, DateTimeOffset submittedAt, CancellationToken cancellationToken)
+    private async Task<Dispute?> SubmitAsync(Guid transactionId, string reasonId, DateTimeOffset submittedAt, CancellationToken cancellationToken)
     {
-        var debitOrder = await debitOrders.FindAsync(debitOrderId, DemoData.Thandi, cancellationToken);
-        if (debitOrder is null)
+        var transaction = await transactions.FindAsync(transactionId, DemoData.Thandi, cancellationToken);
+        if (transaction is null)
         {
             return null;
         }
@@ -47,17 +47,8 @@ internal sealed class DisputesSeeder(DisputesDbContext db, IDebitOrderDirectory 
             Guid.NewGuid(),
             DisputeReference.New(submittedAt),
             DemoData.Thandi,
-            new DisputedDebitOrder(
-                debitOrder.Id,
-                debitOrder.TransactionId,
-                debitOrder.EndToEndId,
-                new Money(debitOrder.Amount, debitOrder.Currency),
-                debitOrder.ActionDate,
-                debitOrder.MandateType,
-                debitOrder.MandateReference,
-                debitOrder.CreditorName,
-                debitOrder.DebtorAccountMasked),
-            DisputeReasons.Find(reasonCode)!,
+            DisputeMapper.ToDisputedTransaction(transaction),
+            reasonId,
             submittedAt);
 
         db.Disputes.Add(dispute);

@@ -10,16 +10,17 @@ namespace DisputePortal.UnitTests.Disputes;
 
 public class DisputeProcessingServiceTests
 {
-    private const string RejectedTransaction = "ACME-TX-RETURN-REJECT-0001";
+    private const string DeclinedDebitOrder = "ACME-TX-RETURN-REJECT-0001";
+    private const string DeclinedCard = "74027000000000000000017";
 
     private readonly FakeTimeProvider _clock = new(DisputeTestData.Now);
 
     private DisputeProcessingService Service => new(
-        new SimulatedSchemeGateway(Options.Create(new SchemeSimulatorOptions { RejectReturnsForTransactionIds = [RejectedTransaction] })),
+        new SimulatedSchemeGateway(Options.Create(new SchemeSimulatorOptions { DeclineSchemeReferences = [DeclinedDebitOrder, DeclinedCard] })),
         _clock);
 
     [Fact]
-    public void Sending_to_the_scheme_stores_the_return_payload()
+    public void Sending_a_debit_order_dispute_stores_a_pacs004_payment_return()
     {
         var dispute = DisputeTestData.Submitted();
 
@@ -27,8 +28,47 @@ public class DisputeProcessingServiceTests
 
         dispute.Status.ShouldBe(DisputeStatus.SentToScheme);
         dispute.SentToSchemeAt.ShouldBe(DisputeTestData.Now);
-        dispute.ReturnPayload.ShouldNotBeNull();
-        dispute.ReturnPayload.ShouldContain(dispute.OriginalTransactionId);
+        dispute.SchemePayload.ShouldNotBeNull();
+        dispute.SchemePayload.ShouldContain("pacs.004");
+        dispute.SchemePayload.ShouldContain(dispute.SchemeReference);
+    }
+
+    [Fact]
+    public void Sending_a_card_dispute_stores_a_chargeback_record_instead_of_a_pacs004()
+    {
+        var dispute = DisputeTestData.Submitted(DisputeTestData.Card(), "duplicate");
+
+        Service.SendToScheme(dispute);
+
+        dispute.Status.ShouldBe(DisputeStatus.SentToScheme);
+        dispute.SchemePayload.ShouldNotBeNull();
+        dispute.SchemePayload.ShouldContain("Chargeback");
+        dispute.SchemePayload.ShouldContain(dispute.SchemeReference);
+        dispute.SchemePayload.ShouldNotContain("pacs.004");
+    }
+
+    [Fact]
+    public void A_card_dispute_the_scheme_accepts_ends_in_a_refund()
+    {
+        var dispute = DisputeTestData.Submitted(DisputeTestData.Card(), "duplicate");
+        Service.SendToScheme(dispute);
+
+        Service.ApplySchemeOutcome(dispute);
+
+        dispute.Status.ShouldBe(DisputeStatus.Refunded);
+    }
+
+    [Fact]
+    public void A_card_dispute_on_the_decline_list_ends_declined_because_the_merchant_proved_the_charge()
+    {
+        var dispute = DisputeTestData.Submitted(DisputeTestData.Card(acquirerReferenceNumber: DeclinedCard), "duplicate");
+        Service.SendToScheme(dispute);
+
+        Service.ApplySchemeOutcome(dispute);
+
+        dispute.Status.ShouldBe(DisputeStatus.Declined);
+        dispute.OutcomeNote.ShouldBe(SimulatedSchemeGateway.CardDeclineNote);
+        dispute.OutcomeNote!.ShouldContain("merchant provided proof");
     }
 
     [Fact]
@@ -45,13 +85,13 @@ public class DisputeProcessingServiceTests
     [Fact]
     public void A_return_the_scheme_rejects_ends_declined_with_an_explanation()
     {
-        var dispute = DisputeTestData.Submitted(transactionId: RejectedTransaction);
+        var dispute = DisputeTestData.Submitted(transactionId: DeclinedDebitOrder);
         Service.SendToScheme(dispute);
 
         Service.ApplySchemeOutcome(dispute);
 
         dispute.Status.ShouldBe(DisputeStatus.Declined);
-        dispute.OutcomeNote.ShouldNotBeNullOrWhiteSpace();
+        dispute.OutcomeNote.ShouldBe(SimulatedSchemeGateway.DebitOrderDeclineNote);
     }
 }
 
@@ -143,7 +183,7 @@ public class OutboxProcessorTests
         Guid.NewGuid(),
         nameof(DisputeStatusChanged),
         JsonSerializer.Serialize(new DisputeStatusChanged(
-            Guid.NewGuid(), DisputeTestData.Customer, "DSP-1", "Refunded", 599m, "ZAR", "Vodacom", "Refunded.", DisputeTestData.Now)),
+            Guid.NewGuid(), DisputeTestData.Customer, "DSP-1", "Refunded", DisputedTransactionTypes.DebitOrder, 599m, "ZAR", "Vodacom", "Refunded.", DisputeTestData.Now)),
         DisputeTestData.Now);
 
     private sealed class RecordingHandler : IDisputeStatusChangedHandler
@@ -168,6 +208,9 @@ public class OutboxProcessorTests
 public class DisputeQueriesTests
 {
     private readonly InMemoryDisputeRepository _repository = new();
+    private readonly FakeTransactionDirectory _transactions = new();
+
+    private DisputeQueries Queries => new(_repository, _transactions);
 
     [Fact]
     public async Task History_separates_pending_from_completed_disputes()
@@ -177,10 +220,9 @@ public class DisputeQueriesTests
         completed.MarkSentToScheme("{}", DisputeTestData.Now);
         completed.MarkRefunded(DisputeTestData.Now);
         _repository.Disputes.AddRange([pending, completed]);
-        var queries = new DisputeQueries(_repository);
 
-        var pendingPage = await queries.ListAsync(DisputeTestData.Customer, new DisputeListQuery { State = DisputeState.Pending }, CancellationToken.None);
-        var completedPage = await queries.ListAsync(DisputeTestData.Customer, new DisputeListQuery { State = DisputeState.Completed }, CancellationToken.None);
+        var pendingPage = await Queries.ListAsync(DisputeTestData.Customer, new DisputeListQuery { State = DisputeState.Pending }, CancellationToken.None);
+        var completedPage = await Queries.ListAsync(DisputeTestData.Customer, new DisputeListQuery { State = DisputeState.Completed }, CancellationToken.None);
 
         pendingPage.Items.Select(d => d.Id).ShouldBe([pending.Id]);
         completedPage.Items.Select(d => d.Id).ShouldBe([completed.Id]);
@@ -193,13 +235,60 @@ public class DisputeQueriesTests
         var dispute = DisputeTestData.Submitted();
         dispute.MarkSentToScheme("{}", DisputeTestData.Now.AddSeconds(10));
         _repository.Disputes.Add(dispute);
-        var queries = new DisputeQueries(_repository);
 
-        var mine = await queries.GetAsync(DisputeTestData.Customer, dispute.Id, CancellationToken.None);
-        var theirs = await queries.GetAsync(Guid.NewGuid(), dispute.Id, CancellationToken.None);
+        var mine = await Queries.GetAsync(DisputeTestData.Customer, dispute.Id, CancellationToken.None);
+        var theirs = await Queries.GetAsync(Guid.NewGuid(), dispute.Id, CancellationToken.None);
 
         mine.Value.Events.Select(e => e.Status).ShouldBe([DisputeStatus.Submitted, DisputeStatus.SentToScheme]);
-        mine.Value.ReasonDescription.ShouldBe("I did not authorise this debit order");
+        mine.Value.ReasonId.ShouldBe("not_authorised");
+        mine.Value.ReasonCode.ShouldBe("MD01");
+        mine.Value.ReasonLabel.ShouldBe("I did not authorise this debit order");
         theirs.Error!.Code.ShouldBe("dispute_not_found");
+    }
+
+    [Fact]
+    public async Task A_card_dispute_is_listed_and_shown_with_its_card_details()
+    {
+        var dispute = DisputeTestData.Submitted(DisputeTestData.Card(), "not_authorised");
+        _repository.Disputes.Add(dispute);
+
+        var page = await Queries.ListAsync(DisputeTestData.Customer, new DisputeListQuery(), CancellationToken.None);
+        var detail = await Queries.GetAsync(DisputeTestData.Customer, dispute.Id, CancellationToken.None);
+
+        page.Items[0].TransactionType.ShouldBe(DisputedTransactionType.Card);
+        page.Items[0].CounterpartyName.ShouldBe("Takealot");
+        page.Items[0].ReasonLabel.ShouldBe("I did not make this transaction");
+        detail.Value.CardScheme.ShouldBe("Visa");
+        detail.Value.ReasonCode.ShouldBe("10.4");
+        detail.Value.MandateReference.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Reasons_are_those_offered_for_the_transaction_with_their_resolved_codes()
+    {
+        var debiCheck = _transactions.Add(ContractData.DebitOrder(mandateType: "DebiCheck"));
+        var mastercard = _transactions.Add(ContractData.Card(scheme: "Mastercard", entryMode: "Recurring"));
+
+        var forDebiCheck = await Queries.ReasonsForAsync(DisputeTestData.Customer, debiCheck.Id, CancellationToken.None);
+        var forCard = await Queries.ReasonsForAsync(DisputeTestData.Customer, mastercard.Id, CancellationToken.None);
+
+        forDebiCheck.Value.Select(r => r.Code).ShouldBe(["AM09", "DT01", "MD06", "AM05"]);
+        forCard.Value.Select(r => (r.Id, r.Code)).ShouldBe(
+        [
+            ("not_authorised", "4837"), ("duplicate", "4834"), ("incorrect_amount", "4834"),
+            ("not_received", "4853"), ("cancelled_recurring", "4853"), ("credit_not_processed", "4853"),
+        ]);
+        forCard.Value[0].Label.ShouldBe("I did not make this transaction");
+    }
+
+    [Fact]
+    public async Task Reasons_for_a_transaction_that_belongs_to_someone_else_are_not_found()
+    {
+        var theirs = _transactions.Add(ContractData.Card() with { CustomerId = Guid.NewGuid() });
+
+        var result = await Queries.ReasonsForAsync(DisputeTestData.Customer, theirs.Id, CancellationToken.None);
+
+        result.Error!.Type.ShouldBe(DisputePortal.SharedKernel.ErrorType.NotFound);
+        result.Error.Code.ShouldBe("transaction_not_found");
     }
 }

@@ -6,15 +6,15 @@ using DisputePortal.SharedKernel;
 
 namespace DisputePortal.Modules.Disputes.Application;
 
-internal sealed record SubmitDisputeCommand(Guid CustomerId, Guid DebitOrderId, string ReasonCode, string IdempotencyKey);
+internal sealed record SubmitDisputeCommand(Guid CustomerId, Guid TransactionId, string ReasonId, string IdempotencyKey);
 
 internal sealed record SubmitDisputeOutcome(Dispute Dispute, bool Replayed);
 
 /// <summary>
 /// Raises a dispute. Safe to retry: the same idempotency key with the same body returns the original dispute,
-/// and a unique index on the debit order is the final guard against a double submission.
+/// and a unique index on the transaction is the final guard against a double submission.
 /// </summary>
-internal sealed class SubmitDisputeHandler(IDebitOrderDirectory debitOrders, IDisputeRepository disputes, TimeProvider timeProvider)
+internal sealed class SubmitDisputeHandler(ITransactionDirectory transactions, IDisputeRepository disputes, TimeProvider timeProvider)
 {
     public async Task<Result<SubmitDisputeOutcome>> HandleAsync(SubmitDisputeCommand command, CancellationToken cancellationToken)
     {
@@ -26,51 +26,36 @@ internal sealed class SubmitDisputeHandler(IDebitOrderDirectory debitOrders, IDi
             return replay;
         }
 
-        // The lookup is scoped to the customer, so someone else's debit order looks exactly like one that does not exist.
-        var debitOrder = await debitOrders.FindAsync(command.DebitOrderId, command.CustomerId, cancellationToken);
-        if (debitOrder is null)
+        // The lookup is scoped to the customer, so someone else's transaction looks exactly like one that does not exist.
+        var found = await transactions.FindAsync(command.TransactionId, command.CustomerId, cancellationToken);
+        if (found is null)
         {
-            return DisputeErrors.DebitOrderNotFound;
+            return DisputeErrors.TransactionNotFound;
         }
 
-        var reason = DisputeReasons.Find(command.ReasonCode);
-        if (reason is null || !reason.IsAllowedFor(debitOrder.MandateType))
+        var transaction = DisputeMapper.ToDisputedTransaction(found);
+        if (DisputeReasons.Resolve(command.ReasonId, transaction) is null)
         {
-            return DisputeErrors.ReasonNotAllowed(command.ReasonCode, debitOrder.MandateType);
+            return DisputeErrors.ReasonNotAllowed(command.ReasonId);
         }
 
-        if (!debitOrder.IsEligible)
+        if (!found.IsEligible)
         {
-            return Error.Unprocessable(debitOrder.IneligibilityCode!, debitOrder.IneligibilityMessage!);
+            return Error.Unprocessable(found.IneligibilityCode!, found.IneligibilityMessage!);
         }
 
-        if (await disputes.ExistsForDebitOrderAsync(debitOrder.Id, cancellationToken))
+        if (await disputes.ExistsForTransactionAsync(transaction.TransactionId, cancellationToken))
         {
             return DisputeErrors.AlreadyDisputed;
         }
 
         var now = timeProvider.GetUtcNow();
-        var dispute = Dispute.Submit(
-            Guid.NewGuid(),
-            DisputeReference.New(now),
-            command.CustomerId,
-            new DisputedDebitOrder(
-                debitOrder.Id,
-                debitOrder.TransactionId,
-                debitOrder.EndToEndId,
-                new Money(debitOrder.Amount, debitOrder.Currency),
-                debitOrder.ActionDate,
-                debitOrder.MandateType,
-                debitOrder.MandateReference,
-                debitOrder.CreditorName,
-                debitOrder.DebtorAccountMasked),
-            reason,
-            now);
+        var dispute = Dispute.Submit(Guid.NewGuid(), DisputeReference.New(now), command.CustomerId, transaction, command.ReasonId, now);
 
         var idempotencyRecord = new IdempotencyRecord(command.CustomerId, command.IdempotencyKey, requestHash, dispute.Id, now);
         if (!await disputes.TryAddAsync(dispute, idempotencyRecord, cancellationToken))
         {
-            // Another request won the race. It was either the same request retried, or a second dispute for the same debit order.
+            // Another request won the race. It was either the same request retried, or a second dispute for the same transaction.
             return await FindReplayAsync(command, requestHash, cancellationToken) ?? DisputeErrors.AlreadyDisputed;
         }
 
@@ -99,24 +84,24 @@ internal sealed class SubmitDisputeHandler(IDebitOrderDirectory debitOrders, IDi
 
     private static string HashRequest(SubmitDisputeCommand command)
     {
-        var canonical = $"{command.DebitOrderId:N}|{command.ReasonCode}";
+        var canonical = $"{command.TransactionId:N}|{command.ReasonId}";
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
     }
 }
 
 internal static class DisputeErrors
 {
-    public static readonly Error DebitOrderNotFound = Error.NotFound("debit_order_not_found", "The debit order was not found.");
+    public static readonly Error TransactionNotFound = Error.NotFound("transaction_not_found", "The transaction was not found.");
 
     public static readonly Error DisputeNotFound = Error.NotFound("dispute_not_found", "The dispute was not found.");
 
-    public static readonly Error AlreadyDisputed = Error.Conflict("already_disputed", "This debit order has already been disputed.");
+    public static readonly Error AlreadyDisputed = Error.Conflict("already_disputed", "This transaction has already been disputed.");
 
     public static readonly Error IdempotencyKeyReused = Error.Conflict(
         "idempotency_key_reused", "This Idempotency-Key was already used for a different request.");
 
-    public static Error ReasonNotAllowed(string reasonCode, string mandateType) => Error.Unprocessable(
-        "reason_not_allowed", $"Reason '{reasonCode}' cannot be used for a {mandateType} debit order.");
+    public static Error ReasonNotAllowed(string reasonId) => Error.Unprocessable(
+        "reason_not_allowed", $"Reason '{reasonId}' cannot be used for this transaction.");
 }
 
 internal static class DisputeReference

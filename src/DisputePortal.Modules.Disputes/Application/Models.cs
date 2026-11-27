@@ -1,4 +1,6 @@
 using DisputePortal.Modules.Disputes.Domain;
+using DisputePortal.Modules.Transactions.Contracts;
+using DisputePortal.SharedKernel;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DisputePortal.Modules.Disputes.Application;
@@ -10,29 +12,25 @@ internal enum DisputeState
     Completed,
 }
 
-/// <summary>Mandate type as a query parameter for the dispute reasons endpoint.</summary>
-internal enum MandateKind
-{
-    DebiCheck,
-    Registered,
-}
+internal sealed record SubmitDisputeRequest(Guid TransactionId, string ReasonId);
 
-internal sealed record SubmitDisputeRequest(Guid DebitOrderId, string ReasonCode);
-
-internal sealed record DisputeReasonDto(string Code, string Description);
+/// <summary>A reason the customer may choose for one transaction. The code is the scheme's code for that transaction.</summary>
+internal sealed record DisputeReasonDto(string Id, string Label, string Code);
 
 internal sealed record DisputeEventDto(DisputeStatus Status, string Description, DateTimeOffset OccurredAt);
 
 internal sealed record DisputeSummaryDto(
     Guid Id,
     string Reference,
-    Guid DebitOrderId,
-    string CreditorName,
+    Guid TransactionId,
+    DisputedTransactionType TransactionType,
+    string CounterpartyName,
     decimal Amount,
     string Currency,
-    DateOnly ActionDate,
+    DateOnly TransactionDate,
+    string ReasonId,
     string ReasonCode,
-    string ReasonDescription,
+    string ReasonLabel,
     DisputeStatus Status,
     DisputeState State,
     DateTimeOffset SubmittedAt,
@@ -41,16 +39,19 @@ internal sealed record DisputeSummaryDto(
 internal sealed record DisputeDetailDto(
     Guid Id,
     string Reference,
-    Guid DebitOrderId,
-    string OriginalTransactionId,
-    string CreditorName,
-    string MandateType,
-    string MandateReference,
+    Guid TransactionId,
+    DisputedTransactionType TransactionType,
+    string SchemeReference,
+    string CounterpartyName,
+    string? MandateType,
+    string? MandateReference,
+    string? CardScheme,
     decimal Amount,
     string Currency,
-    DateOnly ActionDate,
+    DateOnly TransactionDate,
+    string ReasonId,
     string ReasonCode,
-    string ReasonDescription,
+    string ReasonLabel,
     DisputeStatus Status,
     DisputeState State,
     DateTimeOffset SubmittedAt,
@@ -78,13 +79,15 @@ internal static class DisputeMapper
     public static DisputeSummaryDto ToSummary(Dispute dispute) => new(
         dispute.Id,
         dispute.Reference,
-        dispute.DebitOrderId,
-        dispute.CreditorName,
+        dispute.TransactionId,
+        dispute.TransactionType,
+        dispute.CounterpartyName,
         dispute.Amount,
         dispute.Currency,
-        dispute.ActionDate,
+        dispute.TransactionDate,
+        dispute.ReasonId,
         dispute.ReasonCode,
-        DescribeReason(dispute.ReasonCode),
+        DisputeReasons.LabelOf(dispute.TransactionType, dispute.ReasonId),
         dispute.Status,
         StateOf(dispute),
         dispute.SubmittedAt,
@@ -93,16 +96,19 @@ internal static class DisputeMapper
     public static DisputeDetailDto ToDetail(Dispute dispute) => new(
         dispute.Id,
         dispute.Reference,
-        dispute.DebitOrderId,
-        dispute.OriginalTransactionId,
-        dispute.CreditorName,
+        dispute.TransactionId,
+        dispute.TransactionType,
+        dispute.SchemeReference,
+        dispute.CounterpartyName,
         dispute.MandateType,
         dispute.MandateReference,
+        dispute.CardScheme,
         dispute.Amount,
         dispute.Currency,
-        dispute.ActionDate,
+        dispute.TransactionDate,
+        dispute.ReasonId,
         dispute.ReasonCode,
-        DescribeReason(dispute.ReasonCode),
+        DisputeReasons.LabelOf(dispute.TransactionType, dispute.ReasonId),
         dispute.Status,
         StateOf(dispute),
         dispute.SubmittedAt,
@@ -113,5 +119,19 @@ internal static class DisputeMapper
             .Select(e => new DisputeEventDto(e.Status, e.Description, e.OccurredAt))
             .ToList());
 
-    private static string DescribeReason(string code) => DisputeReasons.Find(code)?.Description ?? code;
+    /// <summary>Copies what a dispute needs from the Transactions module's contract into this module's own model.</summary>
+    public static DisputedTransaction ToDisputedTransaction(TransactionForDispute transaction) => new(
+        transaction.Id,
+        Enum.Parse<DisputedTransactionType>(transaction.Type),
+        transaction.SchemeReference,
+        new Money(transaction.Amount, transaction.Currency),
+        transaction.TransactionDate,
+        transaction.CounterpartyName,
+        transaction.AccountMasked,
+        transaction.DebitOrder is { } debitOrder
+            ? new DisputedDebitOrder(debitOrder.EndToEndId, debitOrder.MandateType, debitOrder.MandateReference)
+            : null,
+        transaction.Card is { } card
+            ? new DisputedCard(card.Scheme, card.EntryMode, card.Verification, card.PostingDate)
+            : null);
 }

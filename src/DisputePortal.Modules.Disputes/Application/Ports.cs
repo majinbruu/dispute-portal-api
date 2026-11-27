@@ -10,7 +10,7 @@ internal interface IDisputeRepository
 
     Task<Dispute?> FindAsync(Guid disputeId, Guid customerId, CancellationToken cancellationToken);
 
-    Task<bool> ExistsForDebitOrderAsync(Guid debitOrderId, CancellationToken cancellationToken);
+    Task<bool> ExistsForTransactionAsync(Guid transactionId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Saves the dispute, its events, its outbox messages and the idempotency record in one transaction.
@@ -21,15 +21,16 @@ internal interface IDisputeRepository
     Task<PagedResult<Dispute>> ListAsync(Guid customerId, DisputeState? state, PageRequest page, CancellationToken cancellationToken);
 }
 
-internal readonly record struct SchemeReturnResult(bool Accepted, string? RejectionReason)
+/// <summary>The scheme's answer to a dispute: accepted, which refunds the customer, or declined with a note for the customer.</summary>
+internal readonly record struct SchemeOutcome(bool Accepted, string? DeclineNote)
 {
-    public static SchemeReturnResult AcceptedResult { get; } = new(true, null);
+    public static SchemeOutcome AcceptedOutcome { get; } = new(true, null);
 
-    public static SchemeReturnResult Rejected(string reason) => new(false, reason);
+    public static SchemeOutcome Declined(string note) => new(false, note);
 }
 
-/// <summary>The boundary to the payment scheme. The only implementation is a simulator.</summary>
+/// <summary>The boundary to the payment schemes. The only implementation is a simulator.</summary>
 internal interface ISchemeGateway
 {
-    SchemeReturnResult SubmitReturn(Dispute dispute);
+    SchemeOutcome Submit(Dispute dispute);
 }

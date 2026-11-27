@@ -4,6 +4,7 @@ using DisputePortal.SharedKernel.Web;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.RateLimiting;
 
 namespace DisputePortal.Modules.Disputes.Controllers;
@@ -18,7 +19,7 @@ internal sealed class DisputesController(SubmitDisputeHandler submitDispute, Dis
 
     [HttpPost(Name = "SubmitDispute")]
     [EnableRateLimiting(ApiConventions.DisputeSubmissionRateLimit)]
-    [EndpointSummary("Raises a dispute against a debit order. Requires an Idempotency-Key header, which makes retries safe.")]
+    [EndpointSummary("Raises a dispute against a debit order or a card transaction. Requires an Idempotency-Key header, which makes retries safe.")]
     [ProducesResponseType<DisputeDetailDto>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
@@ -38,7 +39,7 @@ internal sealed class DisputesController(SubmitDisputeHandler submitDispute, Dis
         }
 
         var result = await submitDispute.HandleAsync(
-            new SubmitDisputeCommand(customer.CustomerId, request.DebitOrderId, request.ReasonCode, idempotencyKey.Trim()),
+            new SubmitDisputeCommand(customer.CustomerId, request.TransactionId, request.ReasonId, idempotencyKey.Trim()),
             cancellationToken);
 
         if (!result.IsSuccess)
@@ -77,11 +78,17 @@ internal sealed class DisputesController(SubmitDisputeHandler submitDispute, Dis
 [Route("api/v1/dispute-reasons")]
 [Authorize(Policy = ApiConventions.CustomerPolicy)]
 [Tags("Disputes")]
-internal sealed class DisputeReasonsController : ControllerBase
+internal sealed class DisputeReasonsController(DisputeQueries queries, ICurrentCustomer customer) : ControllerBase
 {
     [HttpGet(Name = "ListDisputeReasons")]
-    [EndpointSummary("Lists the dispute reasons a customer can choose, optionally only those allowed for a mandate type.")]
+    [EndpointSummary("Lists the dispute reasons the customer can choose for one of their transactions, each with the scheme's code for it.")]
     [ProducesResponseType<IReadOnlyList<DisputeReasonDto>>(StatusCodes.Status200OK)]
-    public ActionResult<IReadOnlyList<DisputeReasonDto>> List([FromQuery] MandateKind? mandateType) =>
-        Ok(DisputeQueries.ReasonsFor(mandateType));
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IReadOnlyList<DisputeReasonDto>>> List(
+        [FromQuery(Name = "transactionId"), BindRequired] Guid transactionId, CancellationToken cancellationToken)
+    {
+        var result = await queries.ReasonsForAsync(customer.CustomerId, transactionId, cancellationToken);
+        return result.IsSuccess ? Ok(result.Value) : this.ToProblem(result.Error!);
+    }
 }

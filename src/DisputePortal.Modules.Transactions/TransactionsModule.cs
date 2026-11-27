@@ -16,9 +16,9 @@ public static class TransactionsModule
             .UseNpgsql(connectionString, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", TransactionsDbContext.Schema))
             .UseSnakeCaseNamingConvention());
 
-        services.AddScoped<IDebitOrderStore, EfDebitOrderStore>();
+        services.AddScoped<ITransactionStore, EfTransactionStore>();
         services.AddScoped<DebitOrderService>();
-        services.AddScoped<IDebitOrderDirectory, DebitOrderDirectory>();
+        services.AddScoped<ITransactionDirectory, TransactionDirectory>();
         services.AddScoped<TransactionsSeeder>();
         services.AddScoped<IValidator<DebitOrderListQuery>, DebitOrderListQueryValidator>();
         services.AddScoped<IValidator<MandateListQuery>, MandateListQueryValidator>();

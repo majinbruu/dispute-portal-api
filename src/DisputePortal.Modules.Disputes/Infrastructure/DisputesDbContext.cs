@@ -37,18 +37,21 @@ internal sealed class DisputesDbContext(DbContextOptions<DisputesDbContext> opti
             dispute.HasKey(d => d.Id);
             dispute.Property(d => d.Id).ValueGeneratedNever();
             dispute.Property(d => d.Reference).HasMaxLength(30);
-            dispute.Property(d => d.OriginalTransactionId).HasMaxLength(35);
-            dispute.Property(d => d.OriginalEndToEndId).HasMaxLength(35);
+            dispute.Property(d => d.TransactionType).HasConversion<string>().HasMaxLength(20);
+            dispute.Property(d => d.SchemeReference).HasMaxLength(35);
             dispute.Property(d => d.Amount).HasPrecision(18, 2);
             dispute.Property(d => d.Currency).HasMaxLength(3).IsFixedLength();
+            dispute.Property(d => d.CounterpartyName).HasMaxLength(140);
+            dispute.Property(d => d.AccountMasked).HasMaxLength(34);
+            dispute.Property(d => d.OriginalEndToEndId).HasMaxLength(35);
             dispute.Property(d => d.MandateType).HasMaxLength(20);
             dispute.Property(d => d.MandateReference).HasMaxLength(35);
-            dispute.Property(d => d.CreditorName).HasMaxLength(140);
-            dispute.Property(d => d.DebtorAccountMasked).HasMaxLength(34);
+            dispute.Property(d => d.CardScheme).HasMaxLength(20);
+            dispute.Property(d => d.ReasonId).HasMaxLength(40);
             dispute.Property(d => d.ReasonCode).HasMaxLength(4);
             dispute.Property(d => d.Status).HasConversion<string>().HasMaxLength(20);
             dispute.Property(d => d.OutcomeNote).HasMaxLength(500);
-            dispute.Property(d => d.ReturnPayload).HasColumnType("jsonb");
+            dispute.Property(d => d.SchemePayload).HasColumnType("jsonb");
 
             // PostgreSQL's xmin system column changes on every update, which gives optimistic concurrency without an extra column.
             dispute.Property(d => d.Version)
@@ -64,8 +67,8 @@ internal sealed class DisputesDbContext(DbContextOptions<DisputesDbContext> opti
 
             dispute.HasIndex(d => d.Reference).IsUnique();
 
-            // One dispute per debit order. This is the final guard against a double submission.
-            dispute.HasIndex(d => d.DebitOrderId).IsUnique();
+            // One dispute per transaction. This is the final guard against a double submission.
+            dispute.HasIndex(d => d.TransactionId).IsUnique();
             dispute.HasIndex(d => new { d.CustomerId, d.SubmittedAt }).IsDescending(false, true);
             dispute.HasIndex(d => new { d.Status, d.SubmittedAt });
         });
@@ -122,9 +125,10 @@ internal sealed class DisputesDbContext(DbContextOptions<DisputesDbContext> opti
                     dispute.CustomerId,
                     dispute.Reference,
                     domainEvent.Status.ToString(),
+                    dispute.TransactionType.ToString(),
                     dispute.Amount,
                     dispute.Currency,
-                    dispute.CreditorName,
+                    dispute.CounterpartyName,
                     isOutcome ? dispute.OutcomeNote : null,
                     domainEvent.OccurredAt);
 

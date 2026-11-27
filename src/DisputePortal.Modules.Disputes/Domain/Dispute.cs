@@ -7,27 +7,42 @@ internal enum DisputeStatus
     /// <summary>Recorded, not yet sent to the scheme.</summary>
     Submitted,
 
-    /// <summary>The pacs.004 return has been generated and sent.</summary>
+    /// <summary>The pacs.004 return or the chargeback has been generated and sent.</summary>
     SentToScheme,
 
     /// <summary>Terminal: the customer was refunded.</summary>
     Refunded,
 
-    /// <summary>Terminal: the scheme rejected the return.</summary>
+    /// <summary>Terminal: the scheme rejected the dispute.</summary>
     Declined,
 }
 
-/// <summary>Details of the disputed debit order, copied at submission so a dispute stands on its own.</summary>
-internal sealed record DisputedDebitOrder(
-    Guid DebitOrderId,
-    string TransactionId,
-    string EndToEndId,
+internal enum DisputedTransactionType
+{
+    DebitOrder,
+    Card,
+}
+
+/// <summary>
+/// Details of the disputed transaction, copied at submission so a dispute stands on its own.
+/// Exactly one of <see cref="DebitOrder"/> and <see cref="Card"/> is set, matching <see cref="Type"/>.
+/// </summary>
+/// <param name="SchemeReference">How the payment scheme identifies the transaction: the pacs.003 TxId of a debit order, or the acquirer reference number of a card transaction.</param>
+/// <param name="TransactionDate">The action date of a debit order, or the day the card was used.</param>
+internal sealed record DisputedTransaction(
+    Guid TransactionId,
+    DisputedTransactionType Type,
+    string SchemeReference,
     Money Amount,
-    DateOnly ActionDate,
-    string MandateType,
-    string MandateReference,
-    string CreditorName,
-    string DebtorAccountMasked);
+    DateOnly TransactionDate,
+    string CounterpartyName,
+    string AccountMasked,
+    DisputedDebitOrder? DebitOrder = null,
+    DisputedCard? Card = null);
+
+internal sealed record DisputedDebitOrder(string EndToEndId, string MandateType, string MandateReference);
+
+internal sealed record DisputedCard(string Scheme, string EntryMode, string Verification, DateOnly? PostingDate);
 
 internal sealed class DisputeEvent
 {
@@ -59,7 +74,7 @@ internal sealed class DisputeEvent
 internal sealed record DisputeStatusChangedDomainEvent(Dispute Dispute, DisputeStatus Status, DateTimeOffset OccurredAt);
 
 /// <summary>
-/// A customer's dispute of one debit order. The aggregate owns the lifecycle:
+/// A customer's dispute of one transaction. The aggregate owns the lifecycle:
 /// Submitted -> SentToScheme -> Refunded or Declined. Every transition appends an event,
 /// which gives the customer a progress timeline and the bank an audit trail.
 /// </summary>
@@ -78,26 +93,43 @@ internal sealed class Dispute
 
     public Guid CustomerId { get; private set; }
 
-    public Guid DebitOrderId { get; private set; }
+    public Guid TransactionId { get; private set; }
 
-    public string OriginalTransactionId { get; private set; } = null!;
+    public DisputedTransactionType TransactionType { get; private set; }
 
-    public string OriginalEndToEndId { get; private set; } = null!;
+    /// <summary>The pacs.003 TxId of a debit order, or the acquirer reference number of a card transaction.</summary>
+    public string SchemeReference { get; private set; } = null!;
 
     public decimal Amount { get; private set; }
 
     public string Currency { get; private set; } = null!;
 
-    public DateOnly ActionDate { get; private set; }
+    /// <summary>The action date of a debit order, or the day the card was used.</summary>
+    public DateOnly TransactionDate { get; private set; }
 
-    public string MandateType { get; private set; } = null!;
+    public string CounterpartyName { get; private set; } = null!;
 
-    public string MandateReference { get; private set; } = null!;
+    public string AccountMasked { get; private set; } = null!;
 
-    public string CreditorName { get; private set; } = null!;
+    /// <summary>Debit orders only: the pacs.003 EndToEndId.</summary>
+    public string? OriginalEndToEndId { get; private set; }
 
-    public string DebtorAccountMasked { get; private set; } = null!;
+    /// <summary>Debit orders only.</summary>
+    public string? MandateType { get; private set; }
 
+    /// <summary>Debit orders only.</summary>
+    public string? MandateReference { get; private set; }
+
+    /// <summary>Card transactions only.</summary>
+    public string? CardScheme { get; private set; }
+
+    /// <summary>Card transactions only.</summary>
+    public DateOnly? PostingDate { get; private set; }
+
+    /// <summary>The stable id of the reason the customer chose.</summary>
+    public string ReasonId { get; private set; } = null!;
+
+    /// <summary>What the payment scheme calls that reason for this transaction, worked out at submission.</summary>
     public string ReasonCode { get; private set; } = null!;
 
     public DisputeStatus Status { get; private set; }
@@ -110,8 +142,8 @@ internal sealed class Dispute
 
     public string? OutcomeNote { get; private set; }
 
-    /// <summary>The simulated pacs.004 payment return, stored as JSON.</summary>
-    public string? ReturnPayload { get; private set; }
+    /// <summary>What was sent to the scheme, stored as JSON: a simulated pacs.004 payment return, or a simulated chargeback record.</summary>
+    public string? SchemePayload { get; private set; }
 
     /// <summary>Optimistic concurrency token (PostgreSQL xmin).</summary>
     public uint Version { get; private set; }
@@ -126,32 +158,42 @@ internal sealed class Dispute
         Guid id,
         string reference,
         Guid customerId,
-        DisputedDebitOrder debitOrder,
-        DisputeReason reason,
+        DisputedTransaction transaction,
+        string reasonId,
         DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reference);
 
-        if (!reason.IsAllowedFor(debitOrder.MandateType))
+        var hasDetailsForItsType = transaction.Type == DisputedTransactionType.Card
+            ? transaction is { Card: not null, DebitOrder: null }
+            : transaction is { DebitOrder: not null, Card: null };
+        if (!hasDetailsForItsType)
         {
-            throw new DisputeRuleException($"Reason {reason.Code} is not allowed for a {debitOrder.MandateType} debit order.");
+            throw new DisputeRuleException($"A {transaction.Type} dispute must carry the details of a {transaction.Type} transaction and no other.");
         }
+
+        var reason = DisputeReasons.Resolve(reasonId, transaction)
+            ?? throw new DisputeRuleException($"Reason '{reasonId}' is not allowed for this {transaction.Type} transaction.");
 
         var dispute = new Dispute
         {
             Id = id,
             Reference = reference,
             CustomerId = customerId,
-            DebitOrderId = debitOrder.DebitOrderId,
-            OriginalTransactionId = debitOrder.TransactionId,
-            OriginalEndToEndId = debitOrder.EndToEndId,
-            Amount = debitOrder.Amount.Amount,   // a dispute is always for the full collection amount
-            Currency = debitOrder.Amount.Currency,
-            ActionDate = debitOrder.ActionDate,
-            MandateType = debitOrder.MandateType,
-            MandateReference = debitOrder.MandateReference,
-            CreditorName = debitOrder.CreditorName,
-            DebtorAccountMasked = debitOrder.DebtorAccountMasked,
+            TransactionId = transaction.TransactionId,
+            TransactionType = transaction.Type,
+            SchemeReference = transaction.SchemeReference,
+            Amount = transaction.Amount.Amount,
+            Currency = transaction.Amount.Currency,
+            TransactionDate = transaction.TransactionDate,
+            CounterpartyName = transaction.CounterpartyName,
+            AccountMasked = transaction.AccountMasked,
+            OriginalEndToEndId = transaction.DebitOrder?.EndToEndId,
+            MandateType = transaction.DebitOrder?.MandateType,
+            MandateReference = transaction.DebitOrder?.MandateReference,
+            CardScheme = transaction.Card?.Scheme,
+            PostingDate = transaction.Card?.PostingDate,
+            ReasonId = reason.Id,
             ReasonCode = reason.Code,
             Status = DisputeStatus.Submitted,
             SubmittedAt = now,
@@ -161,14 +203,14 @@ internal sealed class Dispute
         return dispute;
     }
 
-    public void MarkSentToScheme(string returnPayload, DateTimeOffset now)
+    public void MarkSentToScheme(string schemePayload, DateTimeOffset now)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(returnPayload);
+        ArgumentException.ThrowIfNullOrWhiteSpace(schemePayload);
         EnsureStatus(DisputeStatus.Submitted, DisputeStatus.SentToScheme);
 
         Status = DisputeStatus.SentToScheme;
         SentToSchemeAt = now;
-        ReturnPayload = returnPayload;
+        SchemePayload = schemePayload;
         Record(DisputeStatus.SentToScheme, "Your dispute was sent for processing.", now);
     }
 

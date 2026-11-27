@@ -122,12 +122,17 @@ internal static class NotificationFactory
     {
         var amount = FormatAmount(message.Amount, message.Currency);
 
+        // A debit order is collected by a creditor. A card purchase is made at a merchant.
+        var where = message.TransactionType == DisputedTransactionTypes.Card
+            ? $"at {message.CounterpartyName}"
+            : $"collected by {message.CounterpartyName}";
+
         return message.Status switch
         {
             "Submitted" => Build(
                 NotificationCategory.DisputeReceived,
                 "We received your dispute",
-                $"Your dispute {message.Reference} for {amount} collected by {message.CreditorName} has been received."),
+                $"Your dispute {message.Reference} for {amount} {where} has been received."),
             "SentToScheme" => Build(
                 NotificationCategory.DisputeInProgress,
                 "Your dispute is in progress",

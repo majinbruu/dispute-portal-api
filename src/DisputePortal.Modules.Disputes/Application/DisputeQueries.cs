@@ -1,11 +1,12 @@
 using DisputePortal.Modules.Disputes.Domain;
+using DisputePortal.Modules.Transactions.Contracts;
 using DisputePortal.SharedKernel;
 using FluentValidation;
 
 namespace DisputePortal.Modules.Disputes.Application;
 
-/// <summary>Read use cases for the dispute history.</summary>
-internal sealed class DisputeQueries(IDisputeRepository disputes)
+/// <summary>Read use cases for the dispute history and the reasons a customer can choose.</summary>
+internal sealed class DisputeQueries(IDisputeRepository disputes, ITransactionDirectory transactions)
 {
     public async Task<PagedResult<DisputeSummaryDto>> ListAsync(Guid customerId, DisputeListQuery query, CancellationToken cancellationToken)
     {
@@ -19,10 +20,19 @@ internal sealed class DisputeQueries(IDisputeRepository disputes)
         return dispute is null ? DisputeErrors.DisputeNotFound : Result<DisputeDetailDto>.Success(DisputeMapper.ToDetail(dispute));
     }
 
-    public static IReadOnlyList<DisputeReasonDto> ReasonsFor(MandateKind? mandateType)
+    /// <summary>The reasons offered for one of the customer's transactions, each with the scheme code it resolves to.</summary>
+    public async Task<Result<IReadOnlyList<DisputeReasonDto>>> ReasonsForAsync(Guid customerId, Guid transactionId, CancellationToken cancellationToken)
     {
-        var reasons = mandateType is null ? DisputeReasons.All : DisputeReasons.AllowedFor(mandateType.Value.ToString());
-        return reasons.Select(reason => new DisputeReasonDto(reason.Code, reason.Description)).ToList();
+        var transaction = await transactions.FindAsync(transactionId, customerId, cancellationToken);
+        if (transaction is null)
+        {
+            return DisputeErrors.TransactionNotFound;
+        }
+
+        return Result<IReadOnlyList<DisputeReasonDto>>.Success(
+            DisputeReasons.OfferedFor(DisputeMapper.ToDisputedTransaction(transaction))
+                .Select(reason => new DisputeReasonDto(reason.Id, reason.Label, reason.Code))
+                .ToList());
     }
 }
 
@@ -30,11 +40,13 @@ internal sealed class SubmitDisputeRequestValidator : AbstractValidator<SubmitDi
 {
     public SubmitDisputeRequestValidator()
     {
-        RuleFor(r => r.DebitOrderId).NotEmpty();
-        RuleFor(r => r.ReasonCode)
+        RuleFor(r => r.TransactionId).NotEmpty();
+
+        // Whether the reason is offered for this particular transaction is decided when the dispute is raised.
+        RuleFor(r => r.ReasonId)
             .NotEmpty()
-            .Must(code => DisputeReasons.Find(code) is not null)
-            .WithMessage($"Reason code must be one of: {string.Join(", ", DisputeReasons.All.Select(r => r.Code))}.");
+            .Must(id => DisputeReasons.KnownIds.Contains(id))
+            .WithMessage($"Reason id must be one of: {string.Join(", ", DisputeReasons.KnownIds)}.");
     }
 }
 

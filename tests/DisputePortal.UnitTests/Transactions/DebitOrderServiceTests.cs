@@ -9,7 +9,7 @@ namespace DisputePortal.UnitTests.Transactions;
 
 public class DebitOrderServiceTests
 {
-    private readonly InMemoryDebitOrderStore _store = new();
+    private readonly InMemoryTransactionStore _store = new();
     private readonly FakeDisputeStatusProvider _disputes = new();
     private readonly FakeTimeProvider _clock = new(TestData.Now);
 
@@ -33,7 +33,7 @@ public class DebitOrderServiceTests
     public async Task Shows_the_existing_dispute_and_blocks_a_second_one()
     {
         var debitOrder = _store.Add(TestData.DebitOrder(TestData.RegisteredMandate(), TestData.Today.AddDays(-5)));
-        _disputes.Statuses[debitOrder.Id] = new DebitOrderDisputeStatus(Guid.NewGuid(), "DSP-1", "Submitted");
+        _disputes.Statuses[debitOrder.Id] = new TransactionDisputeStatus(Guid.NewGuid(), "DSP-1", "Submitted");
 
         var result = await Service.GetAsync(TestData.Customer, debitOrder.Id, CancellationToken.None);
 
@@ -65,15 +65,107 @@ public class DebitOrderServiceTests
     }
 
     [Fact]
-    public async Task The_directory_reports_ineligibility_to_other_modules()
+    public async Task A_card_transaction_is_not_a_debit_order()
     {
-        var directory = new DebitOrderDirectory(_store, _clock);
+        var card = _store.Add(TestData.Card());
+
+        var result = await Service.GetAsync(TestData.Customer, card.Id, CancellationToken.None);
+
+        result.Error!.Type.ShouldBe(ErrorType.NotFound);
+    }
+}
+
+public class TransactionDirectoryTests
+{
+    private readonly InMemoryTransactionStore _store = new();
+    private readonly FakeTimeProvider _clock = new(TestData.Now);
+
+    private TransactionDirectory Directory => new(_store, _clock);
+
+    [Fact]
+    public async Task Reports_ineligibility_to_other_modules()
+    {
         var open = _store.Add(TestData.DebitOrder(TestData.RegisteredMandate(), TestData.Today.AddDays(-5)));
         var closed = _store.Add(TestData.DebitOrder(TestData.RegisteredMandate(), TestData.Today.AddDays(-61)));
 
-        (await directory.FindAsync(open.Id, TestData.Customer, CancellationToken.None))!.IsEligible.ShouldBeTrue();
-        (await directory.FindAsync(closed.Id, TestData.Customer, CancellationToken.None))!.IneligibilityCode.ShouldBe("dispute_window_closed");
-        (await directory.FindAsync(open.Id, Guid.NewGuid(), CancellationToken.None)).ShouldBeNull();
+        (await Directory.FindAsync(open.Id, TestData.Customer, CancellationToken.None))!.IsEligible.ShouldBeTrue();
+        (await Directory.FindAsync(closed.Id, TestData.Customer, CancellationToken.None))!.IneligibilityCode.ShouldBe("dispute_window_closed");
+        (await Directory.FindAsync(open.Id, Guid.NewGuid(), CancellationToken.None)).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Describes_a_debit_order_by_its_pacs003_ids_and_its_mandate()
+    {
+        var mandate = TestData.RegisteredMandate();
+        var debitOrder = _store.Add(TestData.DebitOrder(mandate, TestData.Today.AddDays(-5)));
+
+        var found = (await Directory.FindAsync(debitOrder.Id, TestData.Customer, CancellationToken.None))!;
+
+        found.Type.ShouldBe(TransactionTypeNames.DebitOrder);
+        found.SchemeReference.ShouldBe(debitOrder.TransactionId);
+        found.Amount.ShouldBe(599m);
+        found.TransactionDate.ShouldBe(TestData.Today.AddDays(-5));
+        found.CounterpartyName.ShouldBe("Vodacom");
+        found.DebitOrder.ShouldBe(new DebitOrderForDispute("E2E-1", "Registered", mandate.MandateReference));
+        found.Card.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Describes_a_card_purchase_by_its_acquirer_reference_and_how_the_card_was_used()
+    {
+        var details = TestData.CardDetails(postingDate: TestData.Today.AddDays(-3));
+        var card = _store.Add(TestData.Card(details));
+
+        var found = (await Directory.FindAsync(card.Id, TestData.Customer, CancellationToken.None))!;
+
+        found.Type.ShouldBe(TransactionTypeNames.Card);
+        found.IsEligible.ShouldBeTrue();
+        found.SchemeReference.ShouldBe(details.AcquirerReferenceNumber);
+        found.TransactionDate.ShouldBe(details.TransactionDate);
+        found.CounterpartyName.ShouldBe("Takealot");
+        found.Card.ShouldBe(new CardForDispute("Visa", "ECommerce", "None", details.PostingDate));
+        found.DebitOrder.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task A_partly_refunded_card_purchase_can_only_be_disputed_for_what_is_outstanding()
+    {
+        var card = _store.Add(TestData.Card(TestData.CardDetails(amount: 300m) with { RefundedAmount = Money.Zar(120m) }));
+
+        var found = (await Directory.FindAsync(card.Id, TestData.Customer, CancellationToken.None))!;
+
+        found.Amount.ShouldBe(180m);
+    }
+
+    [Theory]
+    [InlineData(nameof(CardTransactionKind.CashWithdrawal), nameof(CardSettlementStatus.Settled), 0, "not_a_purchase")]
+    [InlineData(nameof(CardTransactionKind.Purchase), nameof(CardSettlementStatus.Reversed), 0, "not_settled")]
+    [InlineData(nameof(CardTransactionKind.Purchase), nameof(CardSettlementStatus.Settled), 1899, "fully_refunded")]
+    public async Task Reports_why_a_card_transaction_cannot_be_disputed(string kind, string status, decimal refunded, string expectedCode)
+    {
+        var card = _store.Add(TestData.Card(TestData.CardDetails() with
+        {
+            Kind = Enum.Parse<CardTransactionKind>(kind),
+            Status = Enum.Parse<CardSettlementStatus>(status),
+            RefundedAmount = Money.Zar(refunded),
+        }));
+
+        var found = (await Directory.FindAsync(card.Id, TestData.Customer, CancellationToken.None))!;
+
+        found.IsEligible.ShouldBeFalse();
+        found.IneligibilityCode.ShouldBe(expectedCode);
+        found.IneligibilityMessage.ShouldNotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task A_card_purchase_outside_the_window_names_the_one_hundred_and_twenty_days()
+    {
+        var card = _store.Add(TestData.Card(TestData.CardDetails(postingDate: TestData.Today.AddDays(-121))));
+
+        var found = (await Directory.FindAsync(card.Id, TestData.Customer, CancellationToken.None))!;
+
+        found.IneligibilityCode.ShouldBe("dispute_window_closed");
+        found.IneligibilityMessage!.ShouldContain("120-day");
     }
 }
 
@@ -115,25 +207,26 @@ public class DebitOrderListQueryValidatorTests
     }
 }
 
-internal sealed class InMemoryDebitOrderStore : IDebitOrderStore
+internal sealed class InMemoryTransactionStore : ITransactionStore
 {
-    private readonly List<DebitOrder> _debitOrders = [];
+    private readonly List<Transaction> _transactions = [];
     private readonly List<Mandate> _mandates = [];
 
-    public DebitOrder Add(DebitOrder debitOrder)
+    public T Add<T>(T transaction)
+        where T : Transaction
     {
-        _debitOrders.Add(debitOrder);
-        return debitOrder;
+        _transactions.Add(transaction);
+        return transaction;
     }
 
     public Task<PagedResult<DebitOrder>> ListAsync(Guid customerId, DebitOrderFilter filter, PageRequest page, CancellationToken cancellationToken)
     {
-        var items = _debitOrders.Where(d => d.CustomerId == customerId).OrderByDescending(d => d.EffectiveDate).ToList();
+        var items = _transactions.OfType<DebitOrder>().Where(d => d.CustomerId == customerId).OrderByDescending(d => d.EffectiveDate).ToList();
         return Task.FromResult(new PagedResult<DebitOrder>(items.Skip(page.Skip).Take(page.PageSize).ToList(), page.Page, page.PageSize, items.Count));
     }
 
-    public Task<DebitOrder?> FindAsync(Guid debitOrderId, Guid customerId, CancellationToken cancellationToken) =>
-        Task.FromResult(_debitOrders.FirstOrDefault(d => d.Id == debitOrderId && d.CustomerId == customerId));
+    public Task<Transaction?> FindAsync(Guid transactionId, Guid customerId, CancellationToken cancellationToken) =>
+        Task.FromResult(_transactions.FirstOrDefault(t => t.Id == transactionId && t.CustomerId == customerId));
 
     public Task<PagedResult<Mandate>> ListMandatesAsync(Guid customerId, MandateType? type, PageRequest page, CancellationToken cancellationToken)
     {
@@ -147,9 +240,9 @@ internal sealed class InMemoryDebitOrderStore : IDebitOrderStore
 
 internal sealed class FakeDisputeStatusProvider : IDisputeStatusProvider
 {
-    public Dictionary<Guid, DebitOrderDisputeStatus> Statuses { get; } = [];
+    public Dictionary<Guid, TransactionDisputeStatus> Statuses { get; } = [];
 
-    public Task<IReadOnlyDictionary<Guid, DebitOrderDisputeStatus>> GetForDebitOrdersAsync(IReadOnlyCollection<Guid> debitOrderIds, CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyDictionary<Guid, DebitOrderDisputeStatus>>(
-            Statuses.Where(pair => debitOrderIds.Contains(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value));
+    public Task<IReadOnlyDictionary<Guid, TransactionDisputeStatus>> GetForTransactionsAsync(IReadOnlyCollection<Guid> transactionIds, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyDictionary<Guid, TransactionDisputeStatus>>(
+            Statuses.Where(pair => transactionIds.Contains(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value));
 }

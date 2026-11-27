@@ -31,6 +31,22 @@ public class NotificationFactoryTests
     }
 
     [Fact]
+    public void A_debit_order_dispute_is_described_as_collected_by_the_creditor()
+    {
+        NotificationFactory.Create(Guid.NewGuid(), Event("Submitted"))!.Body
+            .ShouldBe("Your dispute DSP-1 for R1,250.00 collected by Old Mutual Insure has been received.");
+    }
+
+    [Fact]
+    public void A_card_dispute_is_described_as_a_purchase_at_the_merchant()
+    {
+        var message = Event("Submitted") with { TransactionType = DisputedTransactionTypes.Card, CounterpartyName = "Takealot" };
+
+        NotificationFactory.Create(Guid.NewGuid(), message)!.Body
+            .ShouldBe("Your dispute DSP-1 for R1,250.00 at Takealot has been received.");
+    }
+
+    [Fact]
     public void A_refund_notification_states_the_amount_in_rand()
     {
         NotificationFactory.Create(Guid.NewGuid(), Event("Refunded"))!.Body.ShouldContain("R1,250.00");
@@ -57,7 +73,7 @@ public class NotificationFactoryTests
     }
 
     internal static DisputeStatusChanged Event(string status, string? note = null) =>
-        new(Guid.NewGuid(), Customer, "DSP-1", status, 1250m, "ZAR", "Old Mutual Insure", note, Now);
+        new(Guid.NewGuid(), Customer, "DSP-1", status, DisputedTransactionTypes.DebitOrder, 1250m, "ZAR", "Old Mutual Insure", note, Now);
 }
 
 public class DisputeStatusChangedHandlerTests

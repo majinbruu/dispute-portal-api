@@ -5,7 +5,7 @@ namespace DisputePortal.Modules.Transactions.Application;
 
 internal static class DebitOrderMapper
 {
-    public static DebitOrderDto ToDto(DebitOrder debitOrder, DateOnly today, DebitOrderDisputeStatus? dispute)
+    public static DebitOrderDto ToDto(DebitOrder debitOrder, DateOnly today, TransactionDisputeStatus? dispute)
     {
         var eligibility = debitOrder.EvaluateEligibility(today, alreadyDisputed: dispute is not null);
 
