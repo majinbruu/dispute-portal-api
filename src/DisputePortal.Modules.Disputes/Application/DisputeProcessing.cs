@@ -92,8 +92,6 @@ internal sealed class DisputeProcessingService(ISchemeGateway scheme, TimeProvid
         {
             dispute.MarkDeclined(outcome.DeclineNote!, now);
         }
-
-        PortalMetrics.DisputesCompleted.Add(1, new KeyValuePair<string, object?>("outcome", dispute.Status.ToString()));
     }
 }
 

@@ -1,5 +1,6 @@
 using DisputePortal.Modules.Disputes.Application;
 using DisputePortal.Modules.Disputes.Domain;
+using DisputePortal.SharedKernel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -120,18 +121,31 @@ internal sealed class DisputeProcessorWorker(
             if (dispute.Status == DisputeStatus.Submitted)
             {
                 processing.SendToScheme(dispute, DisputeActor.System);
-                ReviewMetrics.Approved(DisputeActorType.System);
             }
             else
             {
                 processing.ApplySchemeOutcome(dispute);
             }
-
-            Logger.LogInformation("Dispute {Reference} moved to {Status}", dispute.Reference, dispute.Status);
         }
 
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+
+        // Counted and logged only after the commit, as the request handlers do. A cycle that fails rolls back
+        // and is retried, and must not be counted for work that was never saved.
+        foreach (var dispute in disputes)
+        {
+            if (dispute.Status == DisputeStatus.SentToScheme)
+            {
+                ReviewMetrics.Approved(DisputeActorType.System);
+            }
+            else
+            {
+                PortalMetrics.DisputesCompleted.Add(1, new KeyValuePair<string, object?>("outcome", dispute.Status.ToString()));
+            }
+
+            Logger.LogInformation("Dispute {Reference} moved to {Status}", dispute.Reference, dispute.Status);
+        }
     }
 }
 
