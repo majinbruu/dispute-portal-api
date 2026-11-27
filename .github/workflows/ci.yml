@@ -44,6 +44,21 @@ jobs:
           "/p:Include=[DisputePortal.Modules.*]DisputePortal.Modules.*.Domain.*%2c[DisputePortal.Modules.*]DisputePortal.Modules.*.Application.*%2c[DisputePortal.SharedKernel]DisputePortal.SharedKernel.*"
           "/p:Exclude=[*]DisputePortal.SharedKernel.Web.*"
 
+  integration:
+    name: Integration tests
+    # The real application against a real PostgreSQL. The tests start the database themselves in a container
+    # (Testcontainers), so the runner only needs Docker. Kept apart from the unit tests, which stay fast and need nothing.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+      - name: Build
+        run: dotnet build tests/DisputePortal.IntegrationTests --configuration Release -p:OpenApiGenerateDocuments=false
+      - name: Integration tests
+        run: dotnet test tests/DisputePortal.IntegrationTests --configuration Release --no-build
+
   smoke:
     name: Start against PostgreSQL
     # Not an integration test suite. It proves the migrations apply to a real database and the service reports ready.
