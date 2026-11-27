@@ -175,7 +175,7 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml down
 The demo stack runs Keycloak in development mode over HTTP with demo users. `docker-compose.prod.yml` is an overlay that shows the same system with a production identity setup. What it changes:
 
 - Keycloak runs in production mode (`start`) with its own PostgreSQL server, a separate database and login from the application's, and one fixed public host name.
-- A Caddy reverse proxy terminates HTTPS and is the only container that publishes a port (80 and 443). It serves the web app on one host name and Keycloak on another, and of Keycloak only the sign-in paths of the `acme-bank` realm. The admin console, the master realm, health and metrics are not reachable from outside.
+- A Caddy reverse proxy terminates HTTPS and is the only container that publishes a port (80 and 443). It serves the web app on one host name and Keycloak on another, and of Keycloak only what sign-in to the `acme-bank` realm needs: the discovery document, the signing keys, the authorisation, token and sign-out endpoints, the forms the sign-in pages post to and their static files. Everything else answers 404 at the proxy: the account console, client registration, the other OpenID Connect endpoints, the admin console, the master realm, health and metrics.
 - Every secret and host name must come from the environment. There are no defaults, and Compose refuses to start while one is missing.
 - The production realm file (`deploy/keycloak/acme-bank-realm.prod.json`) has the `customer` and `agent` roles and the web client, with HTTPS required for every request. It has no users and no password-grant client.
 - The API fetches Keycloak's signing keys from the public HTTPS address only, answers only to the web app's public host name, loads no demo data and does not serve Swagger.
@@ -288,7 +288,9 @@ The API is a **modular monolith**: one deployable, split into three modules with
 - A debit order and a card transaction share one base `Transaction` (owner, counterparty, amount, the date the dispute window counts from, the disputability decision) and keep their own details in their own tables. The list, the ownership check and the dispute window therefore work the same way for both.
 - These rules are checked by architecture tests on every build, including that every controller requires the policy of its audience.
 
-**Two audiences.** There is one policy per role. A customer token is refused on the agent endpoints and an agent token on the customer endpoints, each with a 403. Customer endpoints are always scoped to the token's subject, so another customer's transaction, dispute or notification looks exactly like one that does not exist: 404.
+**Closed unless opened.** A fallback authorisation policy requires a valid token wherever no policy is named, so an endpoint added without one is closed, not open. Only the health endpoints, `/metrics` and, when switched on, the OpenAPI document and the Swagger page allow anonymous access, and each says so where it is mapped. An anonymous request for a path that does not exist gets a 401, not a 404.
+
+**Two audiences.** There is one policy per role. A customer token is refused on the agent endpoints and an agent token on the customer endpoints, each with a 403. Customer endpoints are always scoped to the token's subject, so another customer's transaction, dispute or notification looks exactly like one that does not exist: 404. One user can hold both roles. Such a user cannot approve, reject or comment as an agent on a dispute they raised themselves: the dispute itself refuses it, and the API answers 403 `own_dispute`.
 
 **Stateless and safe on many replicas.** Every request carries a token, so any replica can serve it. Background workers claim rows with `SELECT ... FOR UPDATE SKIP LOCKED`, so replicas never process the same dispute or outbox message at the same time. The same image runs as an API pod or a worker pod.
 
@@ -485,6 +487,7 @@ Browse and try the API at <http://localhost:5080/swagger>. All paths are under `
 - Errors are RFC 9457 problem documents with a stable `code` and a `traceId`.
 - Status codes: 400 invalid input, 401 no or bad token, 403 a valid token without the role the endpoint needs, 404 not found or not yours, 409 conflict with the current state, 422 not disputable or reason not offered for this transaction, 429 rate limited (with a `Retry-After` header).
 - A customer token on an agent endpoint, or an agent token on a customer endpoint, gets a 403.
+- 403 code: `own_dispute`, when an agent who also holds the customer role tries to approve, reject or comment as an agent on a dispute they raised themselves.
 - A resource that belongs to another customer returns 404, so its existence is not revealed.
 - 409 codes: `already_disputed`, `idempotency_key_reused`, `dispute_not_withdrawable`, `dispute_not_awaiting_review` (already approved, rejected or withdrawn) and `dispute_closed` (a comment on a dispute that is no longer open).
 - `POST /disputes` is idempotent: the same key and body returns the dispute that key created, with the header `Idempotent-Replayed: true`, whatever has happened to that dispute since. The same key with a different body is a 409. A unique index on the transaction is the final guard against a double submission. To dispute a transaction again after a withdrawal, send a new key.
@@ -619,7 +622,7 @@ dotnet format DisputePortal.sln
 | --- | --- | --- |
 | Unit tests | .NET SDK | The rules, in memory and fast: the disputability policy for each type, the 60-day and 120-day boundaries, expected collection dates for every frequency, reasons and their codes per scheme, the dispute state machine with actors, agent review, withdrawal, comments, idempotent submission and its races, the scheme payloads and outcomes, outbox delivery and retry, notification wording, validators, money and paging |
 | Architecture tests | .NET SDK | The structure: module boundaries, layer direction, that only contracts are public, that every controller requires the policy of its audience and asks only for that audience's identity |
-| Integration tests | .NET SDK and Docker | The real application, started in-process and called over HTTP, against a real PostgreSQL, with tokens from a test issuer that the application validates with its own JWT configuration. They cover what fakes cannot: token validation (signature, issuer, audience, lifetime, role, subject), 403 between audiences and 404 for another customer's data, the unique index under simultaneous submissions, idempotent replays, the withdrawal that races an agent's approval, `SKIP LOCKED` with two workers and two dispatchers at once, outbox retries with backoff and abandonment, the idempotency key clean-up, migrations from an empty database and the upgrade of a version 1 database with its data, and whole dispute journeys from submission to the inbox |
+| Integration tests | .NET SDK and Docker | The real application, started in-process and called over HTTP, against a real PostgreSQL, with tokens from a test issuer that the application validates with its own JWT configuration. They cover what fakes cannot: token validation (signature, issuer, audience, lifetime, role, subject), 403 between audiences and 404 for another customer's data, a user with both roles who is refused on their own dispute, an endpoint without a policy that still needs a token while health and metrics do not, the business counters as a scrape sees them, the unique index under simultaneous submissions, idempotent replays, the withdrawal that races an agent's approval, `SKIP LOCKED` with two workers and two dispatchers at once, outbox retries with backoff and abandonment, a dispatch cycle that fails to save and counts nothing, the idempotency key clean-up, migrations from an empty database and the upgrade of a version 1 database with its data, and whole dispute journeys from submission to the inbox |
 
 The integration tests do not use Keycloak. The real sign-in flow and the pages are the web app's concern; see the [web repository](https://github.com/majinbruu/dispute-portal-web) for its tests.
 
@@ -699,7 +702,7 @@ Docker Compose reads these from `.env` (demo stack) or from the file given with 
 | Variable | Used by | Purpose |
 | --- | --- | --- |
 | `WEB_PORT`, `API_PORT`, `KEYCLOAK_PORT` | Demo stack | Host ports. Defaults 3000, 5080 and 8080 |
-| `IMAGE_TAG` | Demo stack | Tag of the published images to pull. Default `latest` |
+| `API_IMAGE_TAG`, `WEB_IMAGE_TAG` | Demo stack | Tag of each published image to pull: `latest`, or the full commit SHA of a build of `main` of that image's own repository. Default `latest` |
 | `WEB_CONTEXT` | Build override | Where the web repository is checked out. Default `../dispute-portal-web` |
 | `POSTGRES_PASSWORD`, `KEYCLOAK_ADMIN_PASSWORD` | Both | Demo defaults in the demo stack. Required, with no default, in the production overlay |
 | `KEYCLOAK_DB_PASSWORD` | Production overlay | Password of Keycloak's own database. Required |
@@ -713,22 +716,22 @@ Docker Compose reads these from `.env` (demo stack) or from the file given with 
 | `GET /health/ready` | The process can reach the database of each module |
 | `GET /metrics` | Prometheus metrics: HTTP, runtime, and the business counters below |
 
-Health and metrics are served by the API only. The web container answers 404 for `/health` and `/metrics` and does not proxy them.
+Health and metrics need no token. They are served by the API only. The web container answers 404 for `/health` and `/metrics` and does not proxy them.
 
 | Counter | Labels | Counts |
 | --- | --- | --- |
-| `disputeportal_disputes_submitted` | | Disputes raised by customers |
-| `disputeportal_disputes_reviewed` | `decision` (`Approved`, `Rejected`), `by` (`Agent`, `System`) | Review decisions on submitted disputes |
-| `disputeportal_disputes_completed` | `outcome` (`Refunded`, `Declined`) | Disputes that reached an outcome, by the scheme's answer or an agent's rejection |
-| `disputeportal_disputes_withdrawn` | | Disputes withdrawn by the customer |
-| `disputeportal_dispute_comments_added` | `author` (`Customer`, `Agent`) | Comments added to disputes |
-| `disputeportal_outbox_dispatched` | | Outbox messages delivered to consumers |
-| `disputeportal_outbox_failed` | | Outbox delivery attempts that failed |
-| `disputeportal_outbox_abandoned` | | Outbox messages given up on after the last retry |
+| `disputeportal_disputes_submitted_total` | | Disputes raised by customers |
+| `disputeportal_disputes_reviewed_total` | `decision` (`Approved`, `Rejected`), `by` (`Agent`, `System`) | Review decisions on submitted disputes |
+| `disputeportal_disputes_completed_total` | `outcome` (`Refunded`, `Declined`) | Disputes that reached an outcome, by the scheme's answer or an agent's rejection |
+| `disputeportal_disputes_withdrawn_total` | | Disputes withdrawn by the customer |
+| `disputeportal_dispute_comments_added_total` | `author` (`Customer`, `Agent`) | Comments added to disputes |
+| `disputeportal_outbox_dispatched_total` | | Outbox messages delivered to consumers |
+| `disputeportal_outbox_failed_total` | | Outbox delivery attempts that failed |
+| `disputeportal_outbox_abandoned_total` | | Outbox messages given up on after the last retry |
 
-The dispute counters are incremented after the change is saved. Counters are held per process, so with several replicas they are summed in Prometheus. The exporter publishes a counter when it is first incremented and removes it again when it has not changed for a while, so an idle instance lists none of these.
+Every counter is incremented after the change is saved: a request handler counts after its save, and a worker after its transaction commits. They are Prometheus counters that exist with the value 0 from start-up, for every label value in the table, so `rate()` and `increase()` see the first event. Counters are held per process, so with several replicas they are summed in Prometheus. The names end in `_total` because the OpenMetrics format, which Prometheus asks for when it scrapes, only accepts a counter under such a name.
 
-An outbox message that fails is retried with a growing delay (10, 20, 40 and 80 seconds). After five failed attempts it is abandoned: it is logged at critical level and counted in `disputeportal_outbox_abandoned`. [`deploy/monitoring/alerts.yaml`](deploy/monitoring/alerts.yaml) has two example alert rules: a page when a message is abandoned, with the query to find it and how to replay it, and a warning when deliveries keep failing. The rules have been checked for syntax only, not run against a live Prometheus.
+An outbox message that fails is retried with a growing delay (10, 20, 40 and 80 seconds). After five failed attempts it is abandoned: it is logged at critical level and counted in `disputeportal_outbox_abandoned_total`. [`deploy/monitoring/alerts.yaml`](deploy/monitoring/alerts.yaml) has two example alert rules: a page when a message is abandoned, with the query to find it and how to replay it, and a warning when deliveries keep failing. The rules have been checked for syntax only, not run against a live Prometheus.
 
 Logs are JSON on standard output, and each line carries the trace ID that also appears in error responses. View them with:
 
@@ -775,13 +778,10 @@ The manifests are validated against the Kubernetes schemas. They have not been a
 - **Transactions come from the seeder only.** Transactions and mandates enter the system through the demo seeder. There is no endpoint or message consumer that records a real collection or card transaction.
 - **Rate limits are per instance.** With several replicas the effective limit multiplies. Production would enforce limits at the gateway.
 - **Notification order.** Delivery is at least once and idempotent, and order is best effort: a retried message is delivered behind newer ones, and several dispatchers deliver their batches at the same time. Two notifications for one dispute can be created out of order. The inbox lists them by the time of the event, not by when they were delivered.
-- **Outbox counters can overcount.** The dispatcher counts a delivery when it is made, before its transaction commits. If that commit fails, the message is delivered again (harmlessly, because the consumer is idempotent) and counted again.
-- **Business counters expire when idle.** The metrics exporter (the prometheus-net meter adapter) removes a counter that has not changed for a while and starts it from zero at the next increment. A rare event such as an abandoned outbox message is then a short-lived series that begins at 1, which an `increase()` alert may not see. The example alert rules have not been run against a live Prometheus. A longer expiry on the adapter, or a native Prometheus counter for the outbox, is the fix to make first.
-- **One tag for both images.** CI tags each image with the commit SHA of its own repository. `IMAGE_TAG` applies one tag to both images, so only `latest` exists for both. Pinning a release means editing the two `image:` lines.
 - **Demo identity setup.** In the demo stack Keycloak runs in development mode over HTTP with an embedded database, demo passwords are committed, and the `dispute-portal-cli` client allows the password grant.
 - **The production overlay is a demonstration.** It has been run on one machine with `*.localhost` names and a local certificate authority only, never with public host names. It has no users, single instances of everything, databases in containers without backups, and no secret manager.
-- **Agents are not managed.** An agent is any user with the `agent` role. There is no assignment of disputes to agents, no teams and no four-eyes approval.
-- **Error responses are not fully in the contract.** The `code` and `traceId` fields on error responses are returned but not declared in the OpenAPI document, and neither are the 401 and 403 responses.
+- **Agents are not managed.** An agent is any user with the `agent` role. There is no assignment of disputes to agents, no teams and no four-eyes approval. The one rule is that an agent cannot act on a dispute they raised themselves.
+- **Error responses are not fully in the contract.** The `code` and `traceId` fields on error responses are returned but not declared in the OpenAPI document. Neither are the 401 responses, nor the 403 for a token without the right role.
 - **Kubernetes manifests are not cluster-tested**, as described above.
 
 ## Tooling
