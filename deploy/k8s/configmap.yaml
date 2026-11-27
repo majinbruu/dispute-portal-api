@@ -17,3 +17,4 @@ data:
   ApiDocs__Enabled: "false"
   RateLimiting__RequestsPerMinute: "300"
   RateLimiting__DisputeSubmissionsPerMinute: "5"
+  RateLimiting__CommentsPerMinute: "20"

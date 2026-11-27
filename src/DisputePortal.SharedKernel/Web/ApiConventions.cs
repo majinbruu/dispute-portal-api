@@ -8,5 +8,6 @@ public static class ApiConventions
     public const string AgentPolicy = "Agent";
     public const string AgentRole = "agent";
     public const string DisputeSubmissionRateLimit = "dispute-submission";
+    public const string DisputeCommentRateLimit = "dispute-comment";
     public const string IdempotencyKeyHeader = "Idempotency-Key";
 }

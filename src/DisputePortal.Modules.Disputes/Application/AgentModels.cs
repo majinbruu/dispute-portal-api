@@ -54,6 +54,9 @@ internal sealed record AgentDisputeEventDto(
     Guid? ActorSubjectId,
     DateTimeOffset OccurredAt);
 
+/// <summary>A comment as an agent sees it, with the token subject of whoever wrote it.</summary>
+internal sealed record AgentDisputeCommentDto(Guid Id, DisputeActorType AuthorType, Guid AuthorSubjectId, string Body, DateTimeOffset CreatedAt);
+
 internal sealed record AgentDisputeDetailDto(
     Guid Id,
     string Reference,
@@ -67,7 +70,8 @@ internal sealed record AgentDisputeDetailDto(
     DateTimeOffset? SentToSchemeAt,
     DateTimeOffset? CompletedAt,
     string? OutcomeNote,
-    IReadOnlyList<AgentDisputeEventDto> Events);
+    IReadOnlyList<AgentDisputeEventDto> Events,
+    IReadOnlyList<AgentDisputeCommentDto> Comments);
 
 /// <summary>Query string for the agents' dispute queue.</summary>
 internal sealed class AgentDisputeListQuery
@@ -212,5 +216,9 @@ internal static class AgentDisputeMapper
         dispute.Events
             .OrderBy(e => e.OccurredAt)
             .Select(e => new AgentDisputeEventDto(e.Status, e.Description, e.ActorType, e.ActorSubjectId, e.OccurredAt))
+            .ToList(),
+        dispute.Comments
+            .OrderBy(c => c.CreatedAt)
+            .Select(c => new AgentDisputeCommentDto(c.Id, c.AuthorType, c.AuthorSubjectId, c.Body, c.CreatedAt))
             .ToList());
 }

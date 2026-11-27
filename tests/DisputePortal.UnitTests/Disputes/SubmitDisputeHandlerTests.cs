@@ -179,8 +179,74 @@ public class SubmitDisputeHandlerTests
         result.Error!.Code.ShouldBe("already_disputed");
     }
 
-    private static SubmitDisputeCommand Command(Guid transactionId, string reasonId = "not_authorised", string idempotencyKey = "key-1") =>
-        new(Customer, transactionId, reasonId, idempotencyKey);
+    [Fact]
+    public async Task A_comment_given_with_the_dispute_starts_its_thread()
+    {
+        var debitOrder = _transactions.Add(ContractData.DebitOrder());
+
+        var result = await Handler.HandleAsync(Command(debitOrder.Id, comment: "  I cancelled this in March.  "), CancellationToken.None);
+
+        var comment = result.Value.Dispute.Comments.Single();
+        comment.Body.ShouldBe("I cancelled this in March.");
+        comment.AuthorType.ShouldBe(DisputeActorType.Customer);
+        comment.AuthorSubjectId.ShouldBe(Customer);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task A_dispute_without_a_comment_or_with_a_blank_one_has_an_empty_thread(string? comment)
+    {
+        var debitOrder = _transactions.Add(ContractData.DebitOrder());
+
+        var result = await Handler.HandleAsync(Command(debitOrder.Id, comment: comment), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Dispute.Comments.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Retrying_with_the_same_key_and_the_same_comment_returns_the_original_dispute()
+    {
+        var debitOrder = _transactions.Add(ContractData.DebitOrder());
+        var first = await Handler.HandleAsync(Command(debitOrder.Id, comment: "Cancelled in March."), CancellationToken.None);
+
+        var retry = await Handler.HandleAsync(Command(debitOrder.Id, comment: " Cancelled in March. "), CancellationToken.None);
+
+        retry.Value.Replayed.ShouldBeTrue();
+        retry.Value.Dispute.Id.ShouldBe(first.Value.Dispute.Id);
+        retry.Value.Dispute.Comments.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Reusing_a_key_with_a_different_comment_is_a_conflict()
+    {
+        var debitOrder = _transactions.Add(ContractData.DebitOrder());
+        await Handler.HandleAsync(Command(debitOrder.Id, comment: "Cancelled in March."), CancellationToken.None);
+
+        var changed = await Handler.HandleAsync(Command(debitOrder.Id, comment: "Cancelled in April."), CancellationToken.None);
+        var removed = await Handler.HandleAsync(Command(debitOrder.Id), CancellationToken.None);
+
+        changed.Error!.Code.ShouldBe("idempotency_key_reused");
+        removed.Error!.Code.ShouldBe("idempotency_key_reused");
+    }
+
+    [Fact]
+    public async Task A_request_without_a_comment_hashes_as_it_did_before_comments_existed()
+    {
+        var debitOrder = _transactions.Add(ContractData.DebitOrder());
+
+        await Handler.HandleAsync(Command(debitOrder.Id, reasonId: "duplicate"), CancellationToken.None);
+
+        var expected = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes($"{debitOrder.Id:N}|duplicate")));
+        _disputes.IdempotencyRecords.Single().RequestHash.ShouldBe(expected);
+    }
+
+    private static SubmitDisputeCommand Command(
+        Guid transactionId, string reasonId = "not_authorised", string idempotencyKey = "key-1", string? comment = null) =>
+        new(Customer, transactionId, reasonId, comment, idempotencyKey);
 }
 
 public class SubmitDisputeRequestValidatorTests
@@ -205,6 +271,60 @@ public class SubmitDisputeRequestValidatorTests
 
         result.ShouldHaveValidationErrorFor(r => r.TransactionId);
         result.ShouldHaveValidationErrorFor(r => r.ReasonId);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("I cancelled this in March.")]
+    public void The_comment_is_optional(string? comment)
+    {
+        _validator.TestValidate(new SubmitDisputeRequest(Guid.NewGuid(), "duplicate", comment)).ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Fact]
+    public void A_comment_is_at_most_1000_characters_after_trimming()
+    {
+        var atLimit = new SubmitDisputeRequest(Guid.NewGuid(), "duplicate", $"  {new string('x', 1000)}  ");
+        var overLimit = new SubmitDisputeRequest(Guid.NewGuid(), "duplicate", new string('x', 1001));
+
+        _validator.TestValidate(atLimit).ShouldNotHaveAnyValidationErrors();
+        _validator.TestValidate(overLimit).ShouldHaveValidationErrorFor(r => r.Comment);
+    }
+}
+
+public class AddCommentRequestValidatorTests
+{
+    private readonly AddCommentRequestValidator _validator = new();
+
+    [Theory]
+    [InlineData("x")]
+    [InlineData("  Any news on this?  ")]
+    public void Accepts_a_comment_with_text(string body)
+    {
+        _validator.TestValidate(new AddCommentRequest(body)).ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Fact]
+    public void Accepts_exactly_1000_characters_after_trimming()
+    {
+        _validator.TestValidate(new AddCommentRequest($" {new string('x', 1000)} ")).ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Rejects_a_missing_or_blank_comment(string? body)
+    {
+        _validator.TestValidate(new AddCommentRequest(body!)).ShouldHaveValidationErrorFor(r => r.Body);
+    }
+
+    [Fact]
+    public void Rejects_more_than_1000_characters()
+    {
+        _validator.TestValidate(new AddCommentRequest(new string('x', 1001))).ShouldHaveValidationErrorFor(r => r.Body);
     }
 }
 

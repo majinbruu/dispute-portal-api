@@ -25,6 +25,7 @@ public static class DisputesModule
         services.AddScoped<SubmitDisputeHandler>();
         services.AddScoped<WithdrawDisputeHandler>();
         services.AddScoped<ReviewDisputeHandler>();
+        services.AddScoped<AddCommentHandler>();
         services.AddScoped<DisputeQueries>();
         services.AddScoped<AgentDisputeQueries>();
         services.AddScoped<DisputeProcessingService>();
@@ -32,6 +33,7 @@ public static class DisputesModule
         services.AddScoped<DisputesSeeder>();
         services.AddSingleton<ISchemeGateway, SimulatedSchemeGateway>();
         services.AddScoped<IValidator<SubmitDisputeRequest>, SubmitDisputeRequestValidator>();
+        services.AddScoped<IValidator<AddCommentRequest>, AddCommentRequestValidator>();
         services.AddScoped<IValidator<DisputeListQuery>, DisputeListQueryValidator>();
         services.AddScoped<IValidator<AgentDisputeListQuery>, AgentDisputeListQueryValidator>();
         services.AddScoped<IValidator<RejectDisputeRequest>, RejectDisputeRequestValidator>();

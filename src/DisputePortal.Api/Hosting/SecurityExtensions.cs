@@ -63,13 +63,15 @@ internal static class SecurityExtensions
         .RequireAssertion(context => TokenSubject.TryRead(context.User, out _));
 
     /// <summary>
-    /// A general limit per caller, and a tight limit on raising disputes. Limits are held in memory per instance;
+    /// A general limit per caller, and tighter limits on raising disputes and on adding comments, which are the
+    /// two places a caller writes free text or creates work for someone else. Limits are held in memory per instance;
     /// with several replicas the effective limit multiplies, so production would enforce this at the gateway.
     /// </summary>
     public static IServiceCollection AddPortalRateLimiting(this IServiceCollection services, IConfiguration configuration)
     {
         var requestsPerMinute = configuration.GetValue("RateLimiting:RequestsPerMinute", 300);
         var disputesPerMinute = configuration.GetValue("RateLimiting:DisputeSubmissionsPerMinute", 5);
+        var commentsPerMinute = configuration.GetValue("RateLimiting:CommentsPerMinute", 20);
 
         services.AddRateLimiter(options =>
         {
@@ -85,15 +87,8 @@ internal static class SecurityExtensions
                         QueueLimit = 0,
                     }));
 
-            options.AddPolicy(ApiConventions.DisputeSubmissionRateLimit, context =>
-                RateLimitPartition.GetTokenBucketLimiter(PartitionKey(context), _ => new TokenBucketRateLimiterOptions
-                {
-                    TokenLimit = disputesPerMinute,
-                    TokensPerPeriod = disputesPerMinute,
-                    ReplenishmentPeriod = TimeSpan.FromMinutes(1),
-                    QueueLimit = 0,
-                    AutoReplenishment = true,
-                }));
+            options.AddPolicy(ApiConventions.DisputeSubmissionRateLimit, context => PerMinute(context, disputesPerMinute));
+            options.AddPolicy(ApiConventions.DisputeCommentRateLimit, context => PerMinute(context, commentsPerMinute));
 
             options.OnRejected = async (context, cancellationToken) =>
             {
@@ -118,6 +113,16 @@ internal static class SecurityExtensions
 
         return services;
     }
+
+    private static RateLimitPartition<string> PerMinute(HttpContext context, int permits) =>
+        RateLimitPartition.GetTokenBucketLimiter(PartitionKey(context), _ => new TokenBucketRateLimiterOptions
+        {
+            TokenLimit = permits,
+            TokensPerPeriod = permits,
+            ReplenishmentPeriod = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        });
 
     private static bool IsInfrastructurePath(PathString path) =>
         path.StartsWithSegments("/health") || path.StartsWithSegments("/metrics");

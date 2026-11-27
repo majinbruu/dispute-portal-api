@@ -98,10 +98,10 @@ public class WithdrawDisputeHandlerTests
     {
         var debitOrder = _transactions.Add(ContractData.DebitOrder());
         var submit = new SubmitDisputeHandler(_transactions, _disputes, _clock);
-        var first = await submit.HandleAsync(new SubmitDisputeCommand(Customer, debitOrder.Id, "duplicate", "key-1"), CancellationToken.None);
+        var first = await submit.HandleAsync(new SubmitDisputeCommand(Customer, debitOrder.Id, "duplicate", Comment: null, "key-1"), CancellationToken.None);
         await Handler.HandleAsync(Customer, first.Value.Dispute.Id, CancellationToken.None);
 
-        var second = await submit.HandleAsync(new SubmitDisputeCommand(Customer, debitOrder.Id, "duplicate", "key-2"), CancellationToken.None);
+        var second = await submit.HandleAsync(new SubmitDisputeCommand(Customer, debitOrder.Id, "duplicate", Comment: null, "key-2"), CancellationToken.None);
 
         second.IsSuccess.ShouldBeTrue();
         second.Value.Replayed.ShouldBeFalse();
@@ -115,8 +115,8 @@ public class WithdrawDisputeHandlerTests
     {
         var debitOrder = _transactions.Add(ContractData.DebitOrder());
         var submit = new SubmitDisputeHandler(_transactions, _disputes, _clock);
-        await submit.HandleAsync(new SubmitDisputeCommand(Customer, debitOrder.Id, "duplicate", "key-1"), CancellationToken.None);
-        await submit.HandleAsync(new SubmitDisputeCommand(Customer, debitOrder.Id, "duplicate", "key-2"), CancellationToken.None);
+        await submit.HandleAsync(new SubmitDisputeCommand(Customer, debitOrder.Id, "duplicate", Comment: null, "key-1"), CancellationToken.None);
+        await submit.HandleAsync(new SubmitDisputeCommand(Customer, debitOrder.Id, "duplicate", Comment: null, "key-2"), CancellationToken.None);
 
         _disputes.Disputes.Count.ShouldBe(1);
     }

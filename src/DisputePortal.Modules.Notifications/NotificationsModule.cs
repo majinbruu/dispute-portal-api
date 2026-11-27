@@ -19,6 +19,7 @@ public static class NotificationsModule
         services.AddScoped<INotificationStore, EfNotificationStore>();
         services.AddScoped<NotificationService>();
         services.AddScoped<IDisputeStatusChangedHandler, DisputeStatusChangedHandler>();
+        services.AddScoped<IAgentCommentAddedHandler, AgentCommentAddedHandler>();
         services.AddScoped<IValidator<NotificationListQuery>, NotificationListQueryValidator>();
         return services;
     }

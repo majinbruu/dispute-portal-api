@@ -47,6 +47,22 @@ internal sealed class SubmitDisputeRequestValidator : AbstractValidator<SubmitDi
             .NotEmpty()
             .Must(id => DisputeReasons.KnownIds.Contains(id))
             .WithMessage($"Reason id must be one of: {string.Join(", ", DisputeReasons.KnownIds)}.");
+
+        // Optional. A blank comment counts as none, and the limit applies to the trimmed text that is stored.
+        RuleFor(r => r.Comment)
+            .Must(comment => string.IsNullOrWhiteSpace(comment) || comment.Trim().Length <= DisputeComment.MaxLength)
+            .WithMessage($"A comment can be at most {DisputeComment.MaxLength} characters.");
+    }
+}
+
+internal sealed class AddCommentRequestValidator : AbstractValidator<AddCommentRequest>
+{
+    public AddCommentRequestValidator()
+    {
+        // The comment is trimmed before it is stored, so the limits apply to what is left.
+        RuleFor(r => r.Body)
+            .Must(body => body?.Trim().Length is >= 1 and <= DisputeComment.MaxLength)
+            .WithMessage($"A comment is required, of at most {DisputeComment.MaxLength} characters.");
     }
 }
 

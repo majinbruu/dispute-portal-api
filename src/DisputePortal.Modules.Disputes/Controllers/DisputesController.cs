@@ -16,6 +16,7 @@ namespace DisputePortal.Modules.Disputes.Controllers;
 internal sealed class DisputesController(
     SubmitDisputeHandler submitDispute,
     WithdrawDisputeHandler withdrawDispute,
+    AddCommentHandler addComment,
     DisputeQueries queries,
     ICurrentCustomer customer) : ControllerBase
 {
@@ -23,7 +24,7 @@ internal sealed class DisputesController(
 
     [HttpPost(Name = "SubmitDispute")]
     [EnableRateLimiting(ApiConventions.DisputeSubmissionRateLimit)]
-    [EndpointSummary("Raises a dispute against a debit order or a card transaction. Requires an Idempotency-Key header, which makes retries safe.")]
+    [EndpointSummary("Raises a dispute against a debit order or a card transaction, with an optional comment. Requires an Idempotency-Key header, which makes retries safe.")]
     [ProducesResponseType<DisputeDetailDto>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
@@ -43,7 +44,7 @@ internal sealed class DisputesController(
         }
 
         var result = await submitDispute.HandleAsync(
-            new SubmitDisputeCommand(customer.CustomerId, request.TransactionId, request.ReasonId, idempotencyKey.Trim()),
+            new SubmitDisputeCommand(customer.CustomerId, request.TransactionId, request.ReasonId, request.Comment, idempotencyKey.Trim()),
             cancellationToken);
 
         if (!result.IsSuccess)
@@ -68,7 +69,7 @@ internal sealed class DisputesController(
         Ok(await queries.ListAsync(customer.CustomerId, query, cancellationToken));
 
     [HttpGet("{id:guid}", Name = "GetDispute")]
-    [EndpointSummary("Returns one dispute with its progress timeline.")]
+    [EndpointSummary("Returns one dispute with its progress timeline and its comment thread.")]
     [ProducesResponseType<DisputeDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<DisputeDetailDto>> Get(Guid id, CancellationToken cancellationToken)
@@ -85,6 +86,20 @@ internal sealed class DisputesController(
     public async Task<ActionResult<DisputeDetailDto>> Withdraw(Guid id, CancellationToken cancellationToken)
     {
         var result = await withdrawDispute.HandleAsync(customer.CustomerId, id, cancellationToken);
+        return result.IsSuccess ? Ok(DisputeMapper.ToDetail(result.Value)) : this.ToProblem(result.Error!);
+    }
+
+    [HttpPost("{id:guid}/comments", Name = "AddDisputeComment")]
+    [EnableRateLimiting(ApiConventions.DisputeCommentRateLimit)]
+    [EndpointSummary("Adds a comment to the customer's own dispute while it is open. Returns 409 once the dispute is refunded, declined or withdrawn.")]
+    [ProducesResponseType<DisputeDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<DisputeDetailDto>> AddComment(Guid id, [FromBody] AddCommentRequest request, CancellationToken cancellationToken)
+    {
+        var result = await addComment.ByCustomerAsync(customer.CustomerId, id, request.Body, cancellationToken);
         return result.IsSuccess ? Ok(DisputeMapper.ToDetail(result.Value)) : this.ToProblem(result.Error!);
     }
 }

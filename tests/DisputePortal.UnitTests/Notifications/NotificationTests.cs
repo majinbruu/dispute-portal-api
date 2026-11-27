@@ -119,6 +119,58 @@ public class DisputeStatusChangedHandlerTests
     }
 }
 
+public class AgentCommentAddedHandlerTests
+{
+    private static readonly Guid Customer = Guid.NewGuid();
+    private static readonly Guid Dispute = Guid.NewGuid();
+    private static readonly DateTimeOffset Now = new(2026, 11, 22, 8, 0, 0, TimeSpan.Zero);
+
+    private readonly InMemoryNotificationStore _store = new();
+
+    private static AgentCommentAdded Message => new(Dispute, Customer, "DSP-1", Guid.NewGuid(), Now);
+
+    [Fact]
+    public async Task An_agents_comment_puts_a_notification_in_the_customers_inbox()
+    {
+        var messageId = Guid.NewGuid();
+
+        await new AgentCommentAddedHandler(_store).HandleAsync(messageId, Message, CancellationToken.None);
+
+        var notification = _store.Notifications.Single();
+        notification.CustomerId.ShouldBe(Customer);
+        notification.SourceMessageId.ShouldBe(messageId);
+        notification.Category.ShouldBe(NotificationCategory.DisputeComment);
+        notification.Title.ShouldBe("New comment on your dispute");
+        notification.Body.ShouldBe("An agent added a comment to dispute DSP-1. Open the dispute to read it and reply.");
+        notification.RelatedDisputeId.ShouldBe(Dispute);
+        notification.CreatedAt.ShouldBe(Now);
+        notification.IsRead.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handling_the_same_message_twice_creates_one_notification()
+    {
+        var handler = new AgentCommentAddedHandler(_store);
+        var messageId = Guid.NewGuid();
+
+        await handler.HandleAsync(messageId, Message, CancellationToken.None);
+        await handler.HandleAsync(messageId, Message, CancellationToken.None);
+
+        _store.Notifications.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Two_comments_on_one_dispute_are_two_messages_and_two_notifications()
+    {
+        var handler = new AgentCommentAddedHandler(_store);
+
+        await handler.HandleAsync(Guid.NewGuid(), Message, CancellationToken.None);
+        await handler.HandleAsync(Guid.NewGuid(), Message, CancellationToken.None);
+
+        _store.Notifications.Count.ShouldBe(2);
+    }
+}
+
 public class NotificationServiceTests
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 22, 8, 0, 0, TimeSpan.Zero);

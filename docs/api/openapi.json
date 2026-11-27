@@ -116,7 +116,7 @@
         "tags": [
           "Agent"
         ],
-        "summary": "Returns one dispute with the disputed transaction and the audit trail of who did what.",
+        "summary": "Returns one dispute with the disputed transaction, the audit trail of who did what, and the comment thread.",
         "operationId": "GetDisputeForAgent",
         "parameters": [
           {
@@ -377,12 +377,154 @@
         }
       }
     },
+    "/api/v1/agent/disputes/{id}/comments": {
+      "post": {
+        "tags": [
+          "Agent"
+        ],
+        "summary": "Adds an agent's comment to a dispute while it is open. The customer is notified in their inbox. Returns 409 once the dispute is closed.",
+        "operationId": "AddDisputeCommentAsAgent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddCommentRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddCommentRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddCommentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDisputeDetailDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDisputeDetailDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDisputeDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/disputes": {
       "post": {
         "tags": [
           "Disputes"
         ],
-        "summary": "Raises a dispute against a debit order or a card transaction. Requires an Idempotency-Key header, which makes retries safe.",
+        "summary": "Raises a dispute against a debit order or a card transaction, with an optional comment. Requires an Idempotency-Key header, which makes retries safe.",
         "operationId": "SubmitDispute",
         "parameters": [
           {
@@ -624,7 +766,7 @@
         "tags": [
           "Disputes"
         ],
-        "summary": "Returns one dispute with its progress timeline.",
+        "summary": "Returns one dispute with its progress timeline and its comment thread.",
         "operationId": "GetDispute",
         "parameters": [
           {
@@ -742,6 +884,148 @@
           },
           "409": {
             "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/disputes/{id}/comments": {
+      "post": {
+        "tags": [
+          "Disputes"
+        ],
+        "summary": "Adds a comment to the customer's own dispute while it is open. Returns 409 once the dispute is refunded, declined or withdrawn.",
+        "operationId": "AddDisputeComment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddCommentRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddCommentRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddCommentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisputeDetailDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisputeDetailDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisputeDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
             "content": {
               "text/plain": {
                 "schema": {
@@ -1371,6 +1655,47 @@
   },
   "components": {
     "schemas": {
+      "AddCommentRequest": {
+        "required": [
+          "body"
+        ],
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string"
+          }
+        }
+      },
+      "AgentDisputeCommentDto": {
+        "required": [
+          "id",
+          "authorType",
+          "authorSubjectId",
+          "body",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "authorType": {
+            "$ref": "#/components/schemas/DisputeActorType"
+          },
+          "authorSubjectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "body": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "AgentDisputeDetailDto": {
         "required": [
           "id",
@@ -1385,7 +1710,8 @@
           "sentToSchemeAt",
           "completedAt",
           "outcomeNote",
-          "events"
+          "events",
+          "comments"
         ],
         "type": "object",
         "properties": {
@@ -1443,6 +1769,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/AgentDisputeEventDto"
+            }
+          },
+          "comments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentDisputeCommentDto"
             }
           }
         }
@@ -1760,6 +2092,31 @@
           "System"
         ]
       },
+      "DisputeCommentDto": {
+        "required": [
+          "id",
+          "authorType",
+          "body",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "authorType": {
+            "$ref": "#/components/schemas/DisputeActorType"
+          },
+          "body": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "DisputeDetailDto": {
         "required": [
           "id",
@@ -1782,7 +2139,8 @@
           "submittedAt",
           "completedAt",
           "outcomeNote",
-          "events"
+          "events",
+          "comments"
         ],
         "type": "object",
         "properties": {
@@ -1875,6 +2233,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/DisputeEventDto"
+            }
+          },
+          "comments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DisputeCommentDto"
             }
           }
         }
@@ -2273,7 +2637,8 @@
           "DisputeInProgress",
           "DisputeRefunded",
           "DisputeDeclined",
-          "DisputeWithdrawn"
+          "DisputeWithdrawn",
+          "DisputeComment"
         ]
       },
       "NotificationDto": {
@@ -2632,6 +2997,12 @@
           },
           "reasonId": {
             "type": "string"
+          },
+          "comment": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

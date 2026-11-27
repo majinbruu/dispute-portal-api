@@ -6,7 +6,7 @@ using DisputePortal.SharedKernel;
 
 namespace DisputePortal.Modules.Disputes.Application;
 
-internal sealed record SubmitDisputeCommand(Guid CustomerId, Guid TransactionId, string ReasonId, string IdempotencyKey);
+internal sealed record SubmitDisputeCommand(Guid CustomerId, Guid TransactionId, string ReasonId, string? Comment, string IdempotencyKey);
 
 internal sealed record SubmitDisputeOutcome(Dispute Dispute, bool Replayed);
 
@@ -19,6 +19,8 @@ internal sealed class SubmitDisputeHandler(ITransactionDirectory transactions, I
 {
     public async Task<Result<SubmitDisputeOutcome>> HandleAsync(SubmitDisputeCommand command, CancellationToken cancellationToken)
     {
+        // A blank comment is no comment.
+        command = command with { Comment = string.IsNullOrWhiteSpace(command.Comment) ? null : command.Comment.Trim() };
         var requestHash = HashRequest(command);
 
         var replay = await FindReplayAsync(command, requestHash, cancellationToken);
@@ -51,7 +53,7 @@ internal sealed class SubmitDisputeHandler(ITransactionDirectory transactions, I
         }
 
         var now = timeProvider.GetUtcNow();
-        var dispute = Dispute.Submit(Guid.NewGuid(), DisputeReference.New(now), command.CustomerId, transaction, command.ReasonId, comment: null, now);
+        var dispute = Dispute.Submit(Guid.NewGuid(), DisputeReference.New(now), command.CustomerId, transaction, command.ReasonId, command.Comment, now);
 
         var idempotencyRecord = new IdempotencyRecord(command.CustomerId, command.IdempotencyKey, requestHash, dispute.Id, now);
         if (!await disputes.TryAddAsync(dispute, idempotencyRecord, cancellationToken))
@@ -85,7 +87,13 @@ internal sealed class SubmitDisputeHandler(ITransactionDirectory transactions, I
 
     private static string HashRequest(SubmitDisputeCommand command)
     {
+        // A request without a comment hashes as it did before comments existed, so keys already stored still match.
         var canonical = $"{command.TransactionId:N}|{command.ReasonId}";
+        if (command.Comment is not null)
+        {
+            canonical += $"|{command.Comment}";
+        }
+
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
     }
 }
@@ -103,6 +111,9 @@ internal static class DisputeErrors
 
     public static readonly Error NotAwaitingReview = Error.Conflict(
         "dispute_not_awaiting_review", "This dispute is no longer waiting for review. It was already approved, rejected or withdrawn.");
+
+    public static readonly Error Closed = Error.Conflict(
+        "dispute_closed", "Comments can only be added while a dispute is open.");
 
     public static readonly Error IdempotencyKeyReused = Error.Conflict(
         "idempotency_key_reused", "This Idempotency-Key was already used for a different request.");

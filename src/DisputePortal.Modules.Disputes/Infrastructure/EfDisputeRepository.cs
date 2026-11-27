@@ -15,6 +15,7 @@ internal sealed class EfDisputeRepository(DisputesDbContext db) : IDisputeReposi
     public Task<Dispute?> FindAsync(Guid disputeId, Guid customerId, CancellationToken cancellationToken) =>
         db.Disputes.AsNoTracking()
             .Include(d => d.Events)
+            .Include(d => d.Comments)
             .FirstOrDefaultAsync(d => d.Id == disputeId && d.CustomerId == customerId, cancellationToken);
 
     public Task<Dispute?> FindForChangeAsync(Guid disputeId, Guid customerId, CancellationToken cancellationToken) =>

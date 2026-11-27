@@ -7,6 +7,7 @@ internal enum NotificationCategory
     DisputeRefunded,
     DisputeDeclined,
     DisputeWithdrawn,
+    DisputeComment,
 }
 
 /// <summary>A simulated message to the customer, shown in the in-app inbox.</summary>

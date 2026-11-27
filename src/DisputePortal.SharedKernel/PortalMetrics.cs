@@ -22,6 +22,9 @@ public static class PortalMetrics
     public static readonly Counter<long> DisputesWithdrawn =
         Meter.CreateCounter<long>("disputes_withdrawn", description: "Disputes withdrawn by the customer before an agent reviewed them.");
 
+    public static readonly Counter<long> DisputeCommentsAdded =
+        Meter.CreateCounter<long>("dispute_comments_added", description: "Comments added to disputes, by author (Customer or Agent).");
+
     public static readonly Counter<long> OutboxMessagesDispatched =
         Meter.CreateCounter<long>("outbox_dispatched", description: "Outbox messages delivered to consumers.");
 

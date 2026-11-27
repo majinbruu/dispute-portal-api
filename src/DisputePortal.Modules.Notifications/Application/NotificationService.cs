@@ -115,8 +115,35 @@ internal sealed class DisputeStatusChangedHandler(INotificationStore store) : ID
     }
 }
 
+/// <summary>
+/// Consumes an agent's comment from the outbox and tells the customer in their inbox. The message ID is the
+/// notification's source, as for status changes, so a repeated delivery does not create a second notification.
+/// </summary>
+internal sealed class AgentCommentAddedHandler(INotificationStore store) : IAgentCommentAddedHandler
+{
+    public async Task HandleAsync(Guid messageId, AgentCommentAdded message, CancellationToken cancellationToken)
+    {
+        if (await store.ExistsForSourceAsync(messageId, cancellationToken))
+        {
+            return;
+        }
+
+        await store.TryAddAsync(NotificationFactory.Create(messageId, message), cancellationToken);
+    }
+}
+
 internal static class NotificationFactory
 {
+    /// <summary>The comment itself is not copied into the inbox. The customer reads it, and can reply, on the dispute.</summary>
+    public static Notification Create(Guid messageId, AgentCommentAdded message) => new(
+        message.CustomerId,
+        messageId,
+        NotificationCategory.DisputeComment,
+        "New comment on your dispute",
+        $"An agent added a comment to dispute {message.Reference}. Open the dispute to read it and reply.",
+        message.DisputeId,
+        message.OccurredAt);
+
     /// <summary>Returns null for a status that has no customer message.</summary>
     public static Notification? Create(Guid messageId, DisputeStatusChanged message)
     {

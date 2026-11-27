@@ -4,6 +4,7 @@ using DisputePortal.SharedKernel.Web;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace DisputePortal.Modules.Disputes.Controllers;
 
@@ -15,7 +16,11 @@ namespace DisputePortal.Modules.Disputes.Controllers;
 [Route("api/v1/agent/disputes")]
 [Authorize(Policy = ApiConventions.AgentPolicy)]
 [Tags("Agent")]
-internal sealed class AgentDisputesController(AgentDisputeQueries queries, ReviewDisputeHandler review, ICurrentAgent agent) : ControllerBase
+internal sealed class AgentDisputesController(
+    AgentDisputeQueries queries,
+    ReviewDisputeHandler review,
+    AddCommentHandler addComment,
+    ICurrentAgent agent) : ControllerBase
 {
     [HttpGet(Name = "ListDisputesForAgent")]
     [EndpointSummary("Lists disputes across all customers. By default the review queue: disputes waiting for review first, oldest first.")]
@@ -25,7 +30,7 @@ internal sealed class AgentDisputesController(AgentDisputeQueries queries, Revie
         Ok(await queries.ListAsync(query, cancellationToken));
 
     [HttpGet("{id:guid}", Name = "GetDisputeForAgent")]
-    [EndpointSummary("Returns one dispute with the disputed transaction and the audit trail of who did what.")]
+    [EndpointSummary("Returns one dispute with the disputed transaction, the audit trail of who did what, and the comment thread.")]
     [ProducesResponseType<AgentDisputeDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<AgentDisputeDetailDto>> Get(Guid id, CancellationToken cancellationToken)
@@ -54,6 +59,20 @@ internal sealed class AgentDisputesController(AgentDisputeQueries queries, Revie
     public async Task<ActionResult<AgentDisputeDetailDto>> Reject(Guid id, [FromBody] RejectDisputeRequest request, CancellationToken cancellationToken)
     {
         var result = await review.RejectAsync(agent.AgentId, id, request.Reason, cancellationToken);
+        return result.IsSuccess ? Ok(AgentDisputeMapper.ToDetail(result.Value)) : this.ToProblem(result.Error!);
+    }
+
+    [HttpPost("{id:guid}/comments", Name = "AddDisputeCommentAsAgent")]
+    [EnableRateLimiting(ApiConventions.DisputeCommentRateLimit)]
+    [EndpointSummary("Adds an agent's comment to a dispute while it is open. The customer is notified in their inbox. Returns 409 once the dispute is closed.")]
+    [ProducesResponseType<AgentDisputeDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<AgentDisputeDetailDto>> AddComment(Guid id, [FromBody] AddCommentRequest request, CancellationToken cancellationToken)
+    {
+        var result = await addComment.ByAgentAsync(agent.AgentId, id, request.Body, cancellationToken);
         return result.IsSuccess ? Ok(AgentDisputeMapper.ToDetail(result.Value)) : this.ToProblem(result.Error!);
     }
 }

@@ -12,13 +12,19 @@ internal enum DisputeState
     Completed,
 }
 
-internal sealed record SubmitDisputeRequest(Guid TransactionId, string ReasonId);
+/// <param name="Comment">Optional. When given it becomes the first comment in the dispute's thread.</param>
+internal sealed record SubmitDisputeRequest(Guid TransactionId, string ReasonId, string? Comment = null);
+
+internal sealed record AddCommentRequest(string Body);
 
 /// <summary>A reason the customer may choose for one transaction. The code is the scheme's code for that transaction.</summary>
 internal sealed record DisputeReasonDto(string Id, string Label, string Code);
 
 /// <param name="Actor">Who caused the event. The customer is told that an agent acted, never which agent.</param>
 internal sealed record DisputeEventDto(DisputeStatus Status, string Description, DisputeActorType Actor, DateTimeOffset OccurredAt);
+
+/// <summary>A comment as the customer sees it: who wrote it is a customer or an agent, never which agent.</summary>
+internal sealed record DisputeCommentDto(Guid Id, DisputeActorType AuthorType, string Body, DateTimeOffset CreatedAt);
 
 internal sealed record DisputeSummaryDto(
     Guid Id,
@@ -58,7 +64,8 @@ internal sealed record DisputeDetailDto(
     DateTimeOffset SubmittedAt,
     DateTimeOffset? CompletedAt,
     string? OutcomeNote,
-    IReadOnlyList<DisputeEventDto> Events);
+    IReadOnlyList<DisputeEventDto> Events,
+    IReadOnlyList<DisputeCommentDto> Comments);
 
 /// <summary>Query string for the dispute history list.</summary>
 internal sealed class DisputeListQuery
@@ -118,6 +125,10 @@ internal static class DisputeMapper
         dispute.Events
             .OrderBy(e => e.OccurredAt)
             .Select(e => new DisputeEventDto(e.Status, e.Description, e.ActorType, e.OccurredAt))
+            .ToList(),
+        dispute.Comments
+            .OrderBy(c => c.CreatedAt)
+            .Select(c => new DisputeCommentDto(c.Id, c.AuthorType, c.Body, c.CreatedAt))
             .ToList());
 
     /// <summary>Copies what a dispute needs from the Transactions module's contract into this module's own model.</summary>
